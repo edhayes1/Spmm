@@ -1,2 +1,13 @@
 /*.o
 /sparsemm
+/out
+/ccs_l3_coursework_2018*
+large-matrices/
+small-matrices/
+..gitignore.swp
+.idea/
+CMakeLists.txt
+ccs-l3-coursework-2018.iml
+cmake-build-debug/
+l3skeleton/
+
