@@ -10,6 +10,7 @@ void basic_sparsemm_sum(const COO, const COO, const COO,
                             const COO, const COO, const COO,
                             COO *);
 void optimised_sparsemm(const COO, const COO, COO*);
+void optimised_sparsemm_CSR(const CSR, const CSR, CSR*);
 void optimised_sparsemm_sum(const COO, const COO, const COO,
                             const COO, const COO, const COO,
                             COO *);
@@ -127,14 +128,24 @@ int main(int argc, char **argv)
         pass |= check_sparsemm_sum();
         return pass;
     } else if (argc == 4) {
+
         COO A, B;
         read_sparse(argv[2], &A);
         read_sparse(argv[3], &B);
 
-        optimised_sparsemm(A, B, &O);
+        CSR As, Bs, C;
+        coo_to_csr(A, &As);
+        coo_to_csr(B, &Bs);
 
+        optimised_sparsemm_CSR(As, Bs, &C);
+
+        csr_to_coo(C, &O);
         free_sparse(&A);
         free_sparse(&B);
+        free_CSR(&As);
+        free_CSR(&Bs);
+        free_CSR(&C);
+
     } else {
         COO A, B, C, D, E, F;
         read_sparse(argv[2], &A);

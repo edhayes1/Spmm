@@ -24,7 +24,9 @@ typedef struct _p_CSR *CSR;
 typedef struct _p_COO *COO;
 
 void alloc_sparse(int, int, int, COO*);
+void alloc_sparse_CSR(int, int, int, CSR*);
 void free_sparse(COO*);
+void free_CSR(CSR*);
 void alloc_dense(int, int, double **);
 void free_dense(double **);
 void zero_dense(int, int, double *);

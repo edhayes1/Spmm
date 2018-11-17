@@ -5,7 +5,7 @@
 large-matrices/
 small-matrices/
 ..gitignore.swp
-.idea/
+.idea/*
 CMakeLists.txt
 ccs-l3-coursework-2018.iml
 cmake-build-debug/

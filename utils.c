@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include "utils.h"
 
@@ -86,6 +87,19 @@ void free_sparse(COO *sparse)
     }
     free(sp->coords);
     free(sp->data);
+    free(sp);
+    *sparse = NULL;
+}
+
+void free_CSR(CSR *sparse)
+{
+    CSR sp = *sparse;
+    if (!sp) {
+        return;
+    }
+    free(sp->data);
+    free(sp->row_start);
+    free(sp->col_indices);
     free(sp);
     *sparse = NULL;
 }
@@ -244,7 +258,7 @@ void coo_to_csr(COO coo, CSR *sparse) {
     alloc_sparse_CSR(m, n, NZ, &sp);
 
     //fill in non zeros
-    sp->data = coo->data;
+    memcpy(sp->data, coo->data, NZ * sizeof(double));
 
     //fill in column indices
     for (int i = 0; i < NZ; i++){
@@ -273,7 +287,7 @@ void csr_to_coo(CSR csr, COO *sparse){
     alloc_sparse(m,n, NZ, &sp);
 
     //fill in non zeros
-    sp->data = csr->data;
+    memcpy(sp->data, csr->data, NZ * sizeof(double));
 
     //fill in column indices
     for (int i = 0; i < NZ; i++){
