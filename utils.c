@@ -57,7 +57,8 @@ void alloc_sparse(int m, int n, int NZ, COO *sparse)
     sp->m = m;
     sp->n = n;
     sp->NZ = NZ;
-    sp->coords = calloc(NZ, sizeof(struct coord));
+    sp->row_indices = calloc(NZ, sizeof(int));
+    sp->col_indices = calloc(NZ, sizeof(int));
     sp->data = calloc(NZ, sizeof(double));
     *sparse = sp;
 }
@@ -85,7 +86,8 @@ void free_sparse(COO *sparse)
     if (!sp) {
         return;
     }
-    free(sp->coords);
+    free(sp->row_indices);
+    free(sp->col_indices);
     free(sp->data);
     free(sp);
     *sparse = NULL;
@@ -117,8 +119,8 @@ void convert_sparse_to_dense(const COO sparse, double **dense)
     alloc_dense(sparse->m, sparse->n, dense);
     zero_dense(sparse->m, sparse->n, *dense);
     for (n = 0; n < sparse->NZ; n++) {
-        i = sparse->coords[n].i;
-        j = sparse->coords[n].j;
+        i = sparse->row_indices[n];
+        j = sparse->col_indices[n];
         (*dense)[j * sparse->m + i] = sparse->data[n];
     }
 }
@@ -156,8 +158,8 @@ void convert_dense_to_sparse(const double *dense, int m, int n,
         for (j = 0; j < n; j++) {
             double val = dense[j*m + i];
             if (fabs(val) > 1e-15) {
-                sp->coords[NZ].i = i;
-                sp->coords[NZ].j = j;
+                sp->row_indices[NZ] = i;
+                sp->col_indices[NZ] = j;
                 sp->data[NZ] = val;
                 NZ++;
             }
@@ -233,8 +235,8 @@ void read_sparse(const char *file, COO *sparse)
             free_sparse(&sp);
             exit(1);
         }
-        sp->coords[k].i = i;
-        sp->coords[k].j = j;
+        sp->row_indices[k] = i;
+        sp->col_indices[k] = j;
         sp->data[k] = val;
         k++;
     }
@@ -250,6 +252,10 @@ void read_sparse(const char *file, COO *sparse)
     fclose(f);
 }
 
+//void transpose_COO(COO coo){
+//    coo ->
+//}
+
 void coo_to_csr(COO coo, CSR *sparse) {
     CSR sp;
     int m = coo->m;
@@ -261,13 +267,11 @@ void coo_to_csr(COO coo, CSR *sparse) {
     memcpy(sp->data, coo->data, NZ * sizeof(double));
 
     //fill in column indices
-    for (int i = 0; i < NZ; i++){
-        sp->col_indices[i] = coo->coords[i].j;
-    }
+    memcpy(sp->col_indices, coo->col_indices, NZ * sizeof(int));
 
     //get num nz per row (inplace)
     for(int i = 0; i < NZ; i++){
-        sp->row_start[coo->coords[i].i]++;
+        sp->row_start[coo->row_indices[i]]++;
     }
 
     for (int i = 0, row_sum = 0; i <= m; i++){
@@ -290,9 +294,7 @@ void csr_to_coo(CSR csr, COO *sparse){
     memcpy(sp->data, csr->data, NZ * sizeof(double));
 
     //fill in column indices
-    for (int i = 0; i < NZ; i++){
-        sp->coords[i].j = csr->col_indices[i];
-    }
+    memcpy(sp->col_indices, csr->col_indices, NZ * sizeof(int));
 
     //get num nz per row
     int *temp;
@@ -303,7 +305,7 @@ void csr_to_coo(CSR csr, COO *sparse){
     //fill row nums
     for (int i = 0, idx = 0; i < m; i++){
         for (int r = 0; r < temp[i]; r++){
-            sp->coords[idx].i = i;
+            sp->row_indices[idx] = i;
             idx++;
         }
     }
@@ -322,7 +324,7 @@ void write_sparse(FILE *f, COO sp)
     int i;
     fprintf(f, "%d %d %d\n", sp->m, sp->n, sp->NZ);
     for (i = 0; i < sp->NZ; i++) {
-        fprintf(f, "%d %d %g\n", sp->coords[i].i, sp->coords[i].j, sp->data[i]);
+        fprintf(f, "%d %d %g\n", sp->row_indices[i], sp->col_indices[i], sp->data[i]);
     }
 }
 

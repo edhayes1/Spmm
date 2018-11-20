@@ -9,7 +9,8 @@ struct coord {
 
 struct _p_COO {
     int m, n, NZ;
-    struct coord *coords;
+    int * row_indices;
+    int * col_indices;
     double *data;
 };
 
