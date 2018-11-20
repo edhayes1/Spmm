@@ -52,6 +52,23 @@ void spgemm(const CSR A, const CSR B, CSR C){
             }
         }
 
+        if (nnz_counter + length > C->NZ){
+            printf("re estimating NZ in product\n");
+            int NZ_estimate = C->NZ;
+            NZ_estimate *= 2;
+            int * realloc_col_indices = realloc(C->col_indices, NZ_estimate * sizeof(int));
+            double * realloc_data = realloc(C->data, NZ_estimate * sizeof(double));
+            if (realloc_col_indices && realloc_data){
+                C->NZ = NZ_estimate;
+                C->col_indices = realloc_col_indices;
+                C->data = realloc_data;
+            }
+            else{
+                fprintf(stderr, "FAILED RAN OUT OF MEMORY");
+                exit(-1);
+            }
+        }
+
         for (int cj = 0; cj < length; cj++){
             if(temp[col_start] != 0){
                 C->col_indices[nnz_counter] = col_start;
@@ -68,6 +85,7 @@ void spgemm(const CSR A, const CSR B, CSR C){
         C->row_start[i+1] = nnz_counter;
 
     }
+
     C->NZ = nnz_counter;
 }
 /*
