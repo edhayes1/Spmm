@@ -21,10 +21,15 @@ void optimised_sparsemm(const COO A, const COO B, COO *C){
 }
 
 void spgemm(const CSR A, const CSR B, CSR C){
+    // get C dimensions
     int m = C->m;
     int n = C->n;
     int nnz_counter = 0;
+
+    // temp accumulates a column of the product
     double * temp = calloc(n, sizeof(double));
+
+    // next keeps track of where we are in the column comp. - init to -1.
     int * next = malloc(n * sizeof(int));
     memset(next, -1, n*sizeof(int));
 
@@ -50,12 +55,15 @@ void spgemm(const CSR A, const CSR B, CSR C){
             }
         }
 
+        // if we underestimated, allocate twice the memory
         if (nnz_counter + length > C->NZ){
             printf("re estimating NZ in product\n");
             int NZ_estimate = C->NZ;
             NZ_estimate *= 2;
             int * realloc_col_indices = realloc(C->col_indices, NZ_estimate * sizeof(int));
             double * realloc_data = realloc(C->data, NZ_estimate * sizeof(double));
+
+            //check successfully allocated, else throw an error and exit.
             if (realloc_col_indices && realloc_data){
                 C->NZ = NZ_estimate;
                 C->col_indices = realloc_col_indices;
@@ -84,6 +92,7 @@ void spgemm(const CSR A, const CSR B, CSR C){
 
     }
 
+    // strip off the excess from the estimation. No need to do a realloc.
     C->NZ = nnz_counter;
 }
 /*
@@ -91,8 +100,10 @@ void spgemm(const CSR A, const CSR B, CSR C){
  */
 void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
 {
+    // get dimensions of C
     int C_m = A->m;
     int C_n = B->n;
+    // estimate number of NZ
     int C_nnz = 2*(A->NZ + B->NZ);
     alloc_sparse_CSR(C_m, C_n, C_nnz, C);
 
