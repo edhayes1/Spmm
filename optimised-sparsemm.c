@@ -1,6 +1,4 @@
 /*
- * TODO pass by ref to spgemm
- * TODO guess nnz for c, create the row_pointer in advance
  * TODO try to get rid of ifs, might be possible once done above
  * TODO transpose
  */
