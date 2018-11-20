@@ -10,4 +10,5 @@ CMakeLists.txt
 ccs-l3-coursework-2018.iml
 cmake-build-debug/
 l3skeleton/
-
+callgrind*
+Questions

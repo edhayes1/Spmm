@@ -2,6 +2,7 @@
  * TODO pass by ref to spgemm
  * TODO guess nnz for c, create the row_pointer in advance
  * TODO try to get rid of ifs, might be possible once done above
+ * TODO transpose
  */
 
 #include "utils.h"
@@ -25,12 +26,12 @@ void optimised_sparsemm(const COO A, const COO B, COO *C){
  *  Arp = A_row_pointer, Acp = A_column_pointer
  *  In the future, want to estimate nnz not spend time calculating it directly
  */
-int get_nnz(const int m, const int n, const int *Arp, const int *Acp, const int *Brp, const int *Bcp){
+int get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp){
     int nz = 0;
-    int * index = malloc(n * sizeof(int));
-    memset(index, -1, n*sizeof(int));
+    int * index = malloc(num_cols * sizeof(int));
+    memset(index, -1, num_cols*sizeof(int));
 
-    for (int i = 0; i < m; i++){
+    for (int i = 0; i < num_rows; i++){
         for (int j = Arp[i]; j < Arp[i+1]; j++){
             int A_col_index = Acp[j];
 
