@@ -22,34 +22,6 @@ void optimised_sparsemm(const COO A, const COO B, COO *C){
     return basic_sparsemm(A, B, C);
 }
 
-/* gets the number of non zeroes for C.
- *  Arp = A_row_pointer, Acp = A_column_pointer
- *  In the future, want to estimate nnz not spend time calculating it directly
- */
-int get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp){
-    int nz = 0;
-    int * index = malloc(num_cols * sizeof(int));
-    memset(index, -1, num_cols*sizeof(int));
-
-    for (int i = 0; i < num_rows; i++){
-        for (int j = Arp[i]; j < Arp[i+1]; j++){
-            int A_col_index = Acp[j];
-
-            for (int k = Brp[A_col_index]; k < Brp[A_col_index+1]; k++){
-                int B_col_index = Bcp[k];
-
-                if(index[B_col_index] != i){
-                    index[B_col_index] = i;
-                    nz++;
-                }
-            }
-        }
-    }
-
-    free(index);
-    return nz;
-}
-
 void spgemm(const CSR A, const CSR B, CSR C){
     int m = C->m;
     int n = C->n;
@@ -96,6 +68,7 @@ void spgemm(const CSR A, const CSR B, CSR C){
         C->row_start[i+1] = nnz_counter;
 
     }
+    C->NZ = nnz_counter;
 }
 /*
  * get the nnz so C can be allocated, then do the multiplication.
@@ -104,7 +77,7 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
 {
     int C_m = A->m;
     int C_n = B->n;
-    int C_nnz = get_nnz(C_m, C_n, A->row_start, A->col_indices, B->row_start, B->col_indices);
+    int C_nnz = 2*(A->NZ + B->NZ);
     alloc_sparse_CSR(C_m, C_n, C_nnz, C);
 
     spgemm(A, B, *C);

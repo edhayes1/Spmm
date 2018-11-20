@@ -133,17 +133,29 @@ int main(int argc, char **argv)
         read_sparse(argv[2], &A);
         read_sparse(argv[3], &B);
 
-        CSR As, Bs, C;
-        coo_to_csr(A, &As);
-        coo_to_csr(B, &Bs);
+        /* we want the second matrix in CSC format, for fast column lookup.
+         * to this is the same as the transpose in CSR format.
+        */
+        //transpose_COO(&B);
+        
+        // once the transpose is done, we can convert to CSR format
+        CSR A_csr, B_csr, C;
+        coo_to_csr(A, &A_csr);
+        coo_to_csr(B, &B_csr);
 
-        optimised_sparsemm_CSR(As, Bs, &C);
+        // compute the product from CSRs As and Bc, get a CSR back
+        optimised_sparsemm_CSR(A_csr, B_csr, &C);
 
+        // convert product to COO
         csr_to_coo(C, &O);
+        
+        // once complete, we transpose the product
+        //transpose_COO(&O);
+        
         free_sparse(&A);
         free_sparse(&B);
-        free_CSR(&As);
-        free_CSR(&Bs);
+        free_CSR(&A_csr);
+        free_CSR(&B_csr);
         free_CSR(&C);
 
     } else {

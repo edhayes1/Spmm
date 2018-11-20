@@ -3,10 +3,6 @@
 
 #include <stdio.h>
 
-struct coord {
-    int i, j;
-};
-
 struct _p_COO {
     int m, n, NZ;
     int * row_indices;
@@ -36,6 +32,8 @@ void convert_sparse_to_dense(const COO, double **);
 void convert_dense_to_sparse(const double *, int, int, COO *);
 void coo_to_csr(const COO, CSR *);
 void csr_to_coo(const CSR, COO *);
+
+void transpose_COO(COO *);
 
 void read_sparse(const char *, COO *);
 void write_sparse(FILE *, COO);

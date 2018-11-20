@@ -313,6 +313,16 @@ void csr_to_coo(CSR csr, COO *sparse){
     *sparse = sp;
 }
 
+void transpose_COO(COO * coo){
+    int new_num_cols = (*coo)->m;
+    (*coo)->m = (*coo)->n;
+    (*coo)->n = new_num_cols;
+
+    int * temp = (*coo)->row_indices;
+    (*coo)->row_indices = (*coo)->col_indices;
+    (*coo)->col_indices = temp;
+}
+
 /*
  * Write a sparse matrix to a file.
  *
