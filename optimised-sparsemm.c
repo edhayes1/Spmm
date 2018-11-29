@@ -58,8 +58,7 @@ void spgemm(const CSR A, const CSR B, CSR C){
         // if we underestimated, allocate twice the memory
         if (nnz_counter + length > C->NZ){
             printf("re estimating NZ in product\n");
-            int NZ_estimate = C->NZ;
-            NZ_estimate *= 2;
+            int NZ_estimate = 2 * C->NZ;
             int * realloc_col_indices = realloc(C->col_indices, NZ_estimate * sizeof(int));
             double * realloc_data = realloc(C->data, NZ_estimate * sizeof(double));
 
@@ -110,12 +109,90 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
     spgemm(A, B, *C);
 }
 
+
+void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
+    int num_rows = sum->m;
+    int num_cols = sum->n;
+    int nnz_counter = 0;
+
+
+    double * temp = calloc(num_cols, sizeof(double));
+    int * next = malloc(num_cols * sizeof(int));
+    memset(next, -1, num_cols * sizeof(int));
+    sum->row_start[0] = 0;
+
+    // loop over each row
+    for (int m = 0; m < num_rows; m++){
+
+        int col_start = -2;
+        int length = 0;
+
+        for (int col_ind = mat_1->row_start[m]; col_ind < mat_1->row_start[m+1]; col_ind++){
+            int col = mat_1->col_indices[col_ind];
+            temp[col] = mat_1->data[col_ind];
+            if (next[col] == -1){
+                next[col] = col_start;
+                col_start = col;
+                length++;
+            }
+        }
+
+        for (int col_ind = mat_2->row_start[m]; col_ind < mat_2->row_start[m+1]; col_ind++){
+            int col = mat_2->col_indices[col_ind];
+            temp[col] += mat_2->data[col_ind];
+            if (next[col] == -1){
+                next[col] = col_start;
+                col_start = col;
+                length++;
+            }
+        }
+
+        for (int col_ind = mat_3->row_start[m]; col_ind < mat_3->row_start[m+1]; col_ind++){
+            int col = mat_3->col_indices[col_ind];
+            temp[col] += mat_3->data[col_ind];
+            if (next[col] == -1){
+                next[col] = col_start;
+                col_start = col;
+                length++;
+            }
+        }
+
+        for (int cj = 0; cj < length; cj++){
+            if(temp[col_start] != 0){
+                sum->col_indices[nnz_counter] = col_start;
+                sum->data[nnz_counter] = temp[col_start];
+                nnz_counter++;
+            }
+
+            int t = col_start;
+            col_start = next[col_start];
+            next[t] = -1;
+            temp[t] = 0;
+        }
+
+        sum->row_start[m+1] = nnz_counter;
+
+    }
+
+    sum->NZ = nnz_counter;
+}
+
 /* Computes O = (A + B + C) (D + E + F).
  * O should be allocated by this routine.
  */
-void optimised_sparsemm_sum(const COO A, const COO B, const COO C,
-                            const COO D, const COO E, const COO F,
-                            COO *O)
+void optimised_sparsemm_sum(const CSR A, const CSR B, const CSR C,
+                            const CSR D, const CSR E, const CSR F,
+                            CSR *R)
 {
-    return basic_sparsemm_sum(A, B, C, D, E, F, O);
+    CSR ABC, DEF;
+    int nnz_ABC = A->NZ + B->NZ + C->NZ;
+    int nnz_DEF = D->NZ + E->NZ + F->NZ;
+
+    alloc_sparse_CSR(A->m, A->n, nnz_ABC, &ABC);
+    alloc_sparse_CSR(D->m, D->n, nnz_DEF, &DEF);
+
+    sum(A, B, C, ABC);
+    sum(D, E, F, DEF);
+
+    optimised_sparsemm_CSR(ABC, DEF, R);
 }
