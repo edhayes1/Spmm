@@ -11,9 +11,9 @@ void basic_sparsemm_sum(const COO, const COO, const COO,
                             COO *);
 void optimised_sparsemm(const COO, const COO, COO*);
 void optimised_sparsemm_CSR(const CSR, const CSR, CSR*);
-void optimised_sparsemm_sum(const COO, const COO, const COO,
-                            const COO, const COO, const COO,
-                            COO *);
+void optimised_sparsemm_sum(const CSR, const CSR, const CSR,
+                            const CSR, const CSR, const CSR,
+                            CSR *);
 
 static int check_sparsemm()
 {
@@ -133,12 +133,6 @@ int main(int argc, char **argv)
         read_sparse(argv[2], &A);
         read_sparse(argv[3], &B);
 
-        /* we want the second matrix in CSC format, for fast column lookup.
-         * to this is the same as the transpose in CSR format.
-        */
-        //transpose_COO(&B);
-        
-        // once the transpose is done, we can convert to CSR format
         CSR A_csr, B_csr, C;
         coo_to_csr(A, &A_csr);
         coo_to_csr(B, &B_csr);
@@ -148,9 +142,6 @@ int main(int argc, char **argv)
 
         // convert product to COO
         csr_to_coo(C, &O);
-        
-        // once complete, we transpose the product
-        //transpose_COO(&O);
         
         free_sparse(&A);
         free_sparse(&B);
@@ -167,7 +158,17 @@ int main(int argc, char **argv)
         read_sparse(argv[6], &E);
         read_sparse(argv[7], &F);
 
-        optimised_sparsemm_sum(A, B, C, D, E, F, &O);
+        CSR A_csr, B_csr, C_csr, D_csr, E_csr, F_csr, R_csr;
+        coo_to_csr(A, &A_csr);
+        coo_to_csr(B, &B_csr);
+        coo_to_csr(C, &C_csr);
+        coo_to_csr(D, &D_csr);
+        coo_to_csr(E, &E_csr);
+        coo_to_csr(F, &F_csr);
+
+        optimised_sparsemm_sum(A_csr, B_csr, C_csr, D_csr, E_csr, F_csr, &R_csr);
+
+        csr_to_coo(R_csr, &O);
 
         free_sparse(&A);
         free_sparse(&B);
@@ -175,6 +176,13 @@ int main(int argc, char **argv)
         free_sparse(&D);
         free_sparse(&E);
         free_sparse(&F);
+        free_CSR(&A_csr);
+        free_CSR(&B_csr);
+        free_CSR(&C_csr);
+        free_CSR(&D_csr);
+        free_CSR(&E_csr);
+        free_CSR(&F_csr);
+        free_CSR(&R_csr);
     }
 
     f = fopen(argv[1], "w");
