@@ -1,8 +1,3 @@
-/*
- * TODO try to get rid of ifs, might be possible once done above
- * TODO transpose
- */
-
 #include "utils.h"
 #include "stdlib.h"
 #include <stdio.h>
