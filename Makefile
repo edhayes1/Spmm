@@ -1,6 +1,6 @@
-CFLAGS = -O3 -march=native  -D_GNU_SOURCE
+CFLAGS = -O3 -Minfo -acc -ta=multicore -Msafeptr -D_GNU_SOURCE 
 LDFLAGS = -lm
-CC = gcc
+CC = pgcc
 
 OBJ = optimised-sparsemm.o basic-sparsemm.o utils.o
 HEADER = utils.h
