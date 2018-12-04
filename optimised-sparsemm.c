@@ -2,6 +2,7 @@
 #include "stdlib.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 void basic_sparsemm(const COO, const COO, COO *);
 void basic_sparsemm_sum(const COO, const COO, const COO,
@@ -30,6 +31,7 @@ void spgemm(const CSR A, const CSR B, CSR C){
 
     C->row_start[0] = 0;
 
+    #pragma acc parallel loop
     for (int i = 0; i < m; i++){
         int col_start = -2;
         int length = 0;
@@ -50,24 +52,24 @@ void spgemm(const CSR A, const CSR B, CSR C){
             }
         }
 
-        // if we underestimated, allocate twice the memory
-        if (nnz_counter + length > C->NZ){
-            printf("re estimating NZ in product\n");
-            int NZ_estimate = 2 * C->NZ;
-            int * realloc_col_indices = realloc(C->col_indices, NZ_estimate * sizeof(int));
-            double * realloc_data = realloc(C->data, NZ_estimate * sizeof(double));
-
-            //check successfully allocated, else throw an error and exit.
-            if (realloc_col_indices && realloc_data){
-                C->NZ = NZ_estimate;
-                C->col_indices = realloc_col_indices;
-                C->data = realloc_data;
-            }
-            else{
-                fprintf(stderr, "FAILED RAN OUT OF MEMORY");
-                exit(-1);
-            }
-        }
+//        // if we underestimated, allocate twice the memory
+//        if (nnz_counter + length > C->NZ){
+//            printf("re estimating NZ in product\n");
+//            int NZ_estimate = 2 * C->NZ;
+//            int * realloc_col_indices = realloc(C->col_indices, NZ_estimate * sizeof(int));
+//            double * realloc_data = realloc(C->data, NZ_estimate * sizeof(double));
+//
+//            //check successfully allocated, else throw an error and exit.
+//            if (realloc_col_indices && realloc_data){
+//                C->NZ = NZ_estimate;
+//                C->col_indices = realloc_col_indices;
+//                C->data = realloc_data;
+//            }
+//            else{
+//                fprintf(stderr, "FAILED RAN OUT OF MEMORY");
+//                exit(-1);
+//            }
+//        }
 
         for (int cj = 0; cj < length; cj++){
             if(temp[col_start] != 0){
@@ -94,14 +96,23 @@ void spgemm(const CSR A, const CSR B, CSR C){
  */
 void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
 {
-    // get dimensions of C
-    int C_m = A->m;
-    int C_n = B->n;
-    // estimate number of NZ
-    int C_nnz = 2*(A->NZ + B->NZ);
-    alloc_sparse_CSR(C_m, C_n, C_nnz, C);
+    time_t start = clock();
+    for (int i = 0; i < 10; i++) {
+        if (A->n != B->m) {
+            fprintf(stderr, "Invalid matrix sizes");
+        }
+        // get dimensions of C
+        int C_m = A->m;
+        int C_n = B->n;
+        // estimate number of NZ
+        int C_nnz = 10 * (A->NZ + B->NZ);
+        alloc_sparse_CSR(C_m, C_n, C_nnz, C);
 
-    spgemm(A, B, *C);
+        spgemm(A, B, *C);
+    }
+    time_t end = clock();
+    printf("\n%f\n", (double) (end - start) / (10 * CLOCKS_PER_SEC));
+    printf("number of non zeros A: %d, B %d, C %d\n", A->NZ, B->NZ, (*C)->NZ);
 }
 
 
@@ -110,13 +121,13 @@ void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
     int num_cols = sum->n;
     int nnz_counter = 0;
 
-
     double * temp = calloc(num_cols, sizeof(double));
     int * next = malloc(num_cols * sizeof(int));
     memset(next, -1, num_cols * sizeof(int));
     sum->row_start[0] = 0;
 
     // loop over each row
+    #pragma acc parallel loop
     for (int m = 0; m < num_rows; m++){
 
         int col_start = -2;

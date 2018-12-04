@@ -1,4 +1,4 @@
-CFLAGS = -O3 -Minfo -acc -ta=multicore -Msafeptr -D_GNU_SOURCE 
+CFLAGS = -O3 -Minfo -acc -ta=multicore -Msafeptr -Mchkstk -Mbounds -D_GNU_SOURCE 
 LDFLAGS = -lm
 CC = pgcc
 
