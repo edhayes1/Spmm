@@ -70,6 +70,10 @@ void spgemm(const CSR A, const CSR B, CSR C){
 //                exit(-1);
 //            }
 //        }
+        for (int i = 0; i < n; i++){
+            printf("%f ", temp[i]);
+        }
+        printf("\n");
 
         for (int cj = 0; cj < length; cj++){
             if(temp[col_start] != 0){
@@ -85,7 +89,6 @@ void spgemm(const CSR A, const CSR B, CSR C){
         }
 
         C->row_start[i+1] = nnz_counter;
-
     }
 
     // strip off the excess from the estimation. No need to do a realloc.
@@ -112,7 +115,7 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
     }
     time_t end = clock();
     printf("\n%f\n", (double) (end - start) / (10 * CLOCKS_PER_SEC));
-    printf("number of non zeros A: %d, B %d, C %d\n", A->NZ, B->NZ, (*C)->NZ);
+    printf("number of rows A: %d, B %d, C %d, NZ: %d", A->m, B->m, (*C)->m, (*C)->NZ);
 }
 
 
