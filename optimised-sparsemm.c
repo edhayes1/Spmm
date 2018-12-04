@@ -26,11 +26,12 @@ void optimised_sparsemm(const COO A, const COO B, COO *C){
  *  Arp = A_row_pointer, Acp = A_column_pointer
  *  In the future, want to estimate nnz not spend time calculating it directly
  */
-int get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp){
+int get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp, int *Ccp){
     int nz = 0;
     int * index = malloc(num_cols * sizeof(int));
     memset(index, -1, num_cols*sizeof(int));
 
+    Ccp[0] = 0;
     for (int i = 0; i < num_rows; i++){
         for (int j = Arp[i]; j < Arp[i+1]; j++){
             int A_col_index = Acp[j];
@@ -44,6 +45,7 @@ int get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *A
                 }
             }
         }
+        Ccp[i] = nz;
     }
 
     free(index);
@@ -104,9 +106,10 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
 {
     int C_m = A->m;
     int C_n = B->n;
-    int C_nnz = get_nnz(C_m, C_n, A->row_start, A->col_indices, B->row_start, B->col_indices);
+    int * Ccp = malloc((C_m + 1) * sizeof(int));
+    int C_nnz = get_nnz(C_m, C_n, A->row_start, A->col_indices, B->row_start, B->col_indices, Ccp);
     alloc_sparse_CSR(C_m, C_n, C_nnz, C);
-
+    (*C)->row_start = Ccp;
     spgemm(A, B, *C);
 }
 
