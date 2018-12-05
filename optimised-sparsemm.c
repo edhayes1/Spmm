@@ -16,106 +16,134 @@ void optimised_sparsemm(const COO A, const COO B, COO *C){
     return basic_sparsemm(A, B, C);
 }
 
+/* gets the number of non zeroes for C.
+ *  Arp = A_row_pointer, Acp = A_column_pointer
+ *  In the future, want to estimate nnz not spend time calculating it directly
+ */
+void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp, int *Ccp){
+    int * index;
+    int nz = 0;
+
+    #pragma acc parallel firstprivate (index[0:num_cols])
+    {
+        index = malloc(num_cols * sizeof(int));
+        memset(index, -1, num_cols*sizeof(int));
+
+        #pragma acc loop collapse(2)
+        for (int i = 0; i < num_rows; i++){
+            for (int j = Arp[i]; j < Arp[i+1]; j++){
+                int A_col_index = Acp[j];
+
+                for (int k = Brp[A_col_index]; k < Brp[A_col_index+1]; k++){
+                    int B_col_index = Bcp[k];
+
+                    if(index[B_col_index] != i){
+                        index[B_col_index] = i;
+                        nz++;
+                    }
+                }
+            }
+            Ccp[i] = nz;
+            nz=0;
+        }
+        free(index);
+    }
+
+    for (int i = 0; i < num_rows; i++){
+        Ccp[i+1] = Ccp[i]+ Ccp[i+1];
+    }
+    Ccp[0] = 0;
+    Ccp[num_rows] = Ccp[num_rows] + 1;
+}
+
 void spgemm(const CSR A, const CSR B, CSR C){
     // get C dimensions
     int m = C->m;
     int n = C->n;
-    int nnz_counter = 0;
 
     // temp accumulates a column of the product
-    double * temp = calloc(n, sizeof(double));
+    double * temp;
+    int * next;
 
-    // next keeps track of where we are in the column comp. - init to -1.
-    int * next = malloc(n * sizeof(int));
-    memset(next, -1, n*sizeof(int));
+    #pragma acc parallel firstprivate(temp[0:n], next[0:n])
+    {
+        temp = calloc(n, sizeof(double));
+        // next keeps track of where we are in the column comp. - init to -1.
+        next = malloc(n * sizeof(int));
+        memset(next, -1, n*sizeof(int));
 
-    C->row_start[0] = 0;
+	    #pragma acc loop
+        for (int i = 0; i < m; i++){
 
-    #pragma acc parallel loop
-    for (int i = 0; i < m; i++){
-        int col_start = -2;
-        int length = 0;
+            int nnz_counter = 0;
+            int col_start = -2;
+            int length = 0;
 
-        for (int n = A->row_start[i]; n < A->row_start[i+1]; n++){
-            int j = A->col_indices[n];
-            double x = A->data[n];
+            #pragma acc loop
+            for (int n = A->row_start[i]; n < A->row_start[i+1]; n++){
+                int j = A->col_indices[n];
+                double x = A->data[n];
 
-            for (int k = B->row_start[j]; k < B->row_start[j+1]; k++) {
-                int k_col = B->col_indices[k];
-                temp[k_col] += x * B->data[k];
+                for (int k = B->row_start[j]; k < B->row_start[j+1]; k++) {
+                    int k_col = B->col_indices[k];
+                    temp[k_col] += x * B->data[k];
 
-                if (next[k_col] == -1){
-                    next[k_col] = col_start;
-                    col_start = k_col;
-                    length++;
+                    if (next[k_col] == -1){
+                        next[k_col] = col_start;
+                        col_start = k_col;
+                        length++;
+                    }
                 }
             }
-        }
 
-//        // if we underestimated, allocate twice the memory
-//        if (nnz_counter + length > C->NZ){
-//            printf("re estimating NZ in product\n");
-//            int NZ_estimate = 2 * C->NZ;
-//            int * realloc_col_indices = realloc(C->col_indices, NZ_estimate * sizeof(int));
-//            double * realloc_data = realloc(C->data, NZ_estimate * sizeof(double));
-//
-//            //check successfully allocated, else throw an error and exit.
-//            if (realloc_col_indices && realloc_data){
-//                C->NZ = NZ_estimate;
-//                C->col_indices = realloc_col_indices;
-//                C->data = realloc_data;
-//            }
-//            else{
-//                fprintf(stderr, "FAILED RAN OUT OF MEMORY");
-//                exit(-1);
-//            }
-//        }
-        for (int i = 0; i < n; i++){
-            printf("%f ", temp[i]);
-        }
-        printf("\n");
-
-        for (int cj = 0; cj < length; cj++){
-            if(temp[col_start] != 0){
-                C->col_indices[nnz_counter] = col_start;
-                C->data[nnz_counter] = temp[col_start];
-                nnz_counter++;
+            for (int i = 0; i < n; i++){
+                printf("%f ", temp[i]);
             }
+            printf("\n");
 
-            int t = col_start;
-            col_start = next[col_start];
-            next[t] = -1;
-            temp[t] = 0;
+            int col_index = C->row_start[i];
+
+            for (int cj = 0; cj < length; cj++){
+                C->col_indices[col_index+nnz_counter] = col_start;
+                C->data[col_index+nnz_counter] = temp[col_start];
+                nnz_counter++;
+
+                int t = col_start;
+                col_start = next[col_start];
+                next[t] = -1;
+                temp[t] = 0;
+            }
         }
-
-        C->row_start[i+1] = nnz_counter;
     }
-
-    // strip off the excess from the estimation. No need to do a realloc.
-    C->NZ = nnz_counter;
 }
+
 /*
  * get the nnz so C can be allocated, then do the multiplication.
  */
 void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
 {
-    time_t start = clock();
-    for (int i = 0; i < 10; i++) {
+    struct timespec start, stop;
+    double accum;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < 1; i++) {
         if (A->n != B->m) {
             fprintf(stderr, "Invalid matrix sizes");
         }
-        // get dimensions of C
+
         int C_m = A->m;
         int C_n = B->n;
-        // estimate number of NZ
-        int C_nnz = 10 * (A->NZ + B->NZ);
+        int *Ccp = malloc((C_m + 1) * sizeof(int));
+        get_nnz(C_m, C_n, A->row_start, A->col_indices, B->row_start, B->col_indices, Ccp);
+        int C_nnz = Ccp[C_m];
         alloc_sparse_CSR(C_m, C_n, C_nnz, C);
-
+        (*C)->row_start = Ccp;
         spgemm(A, B, *C);
     }
-    time_t end = clock();
-    printf("\n%f\n", (double) (end - start) / (10 * CLOCKS_PER_SEC));
-    printf("number of rows A: %d, B %d, C %d, NZ: %d", A->m, B->m, (*C)->m, (*C)->NZ);
+    clock_gettime(CLOCK_MONOTONIC, &stop);
+    accum = ( stop.tv_sec - start.tv_sec )
+            + ( stop.tv_nsec - start.tv_nsec )
+              / 1000000000.0;
+    printf("time: %lf\n", (accum/10));
 }
 
 
@@ -184,6 +212,7 @@ void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
     }
 
     sum->NZ = nnz_counter;
+
 }
 
 /* Computes O = (A + B + C) (D + E + F).

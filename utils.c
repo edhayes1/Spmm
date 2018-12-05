@@ -298,8 +298,7 @@ void csr_to_coo(CSR csr, COO *sparse){
     memcpy(sp->col_indices, csr->col_indices, NZ * sizeof(int));
 
     //get num nz per row
-    int *temp;
-    temp = calloc(m, sizeof(int));
+    int * temp = calloc(m, sizeof(int));
     #pragma acc parallel loop
     for (int i = 0; i < m; i++){
         temp[i] = csr->row_start[i+1] - csr->row_start[i];
