@@ -29,7 +29,8 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
         index = malloc(num_cols * sizeof(int));
         memset(index, -1, num_cols*sizeof(int));
 
-        #pragma acc loop collapse(2)
+        Ccp[0] = 0;
+        #pragma acc loop
         for (int i = 0; i < num_rows; i++){
             for (int j = Arp[i]; j < Arp[i+1]; j++){
                 int A_col_index = Acp[j];
@@ -43,17 +44,15 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
                     }
                 }
             }
-            Ccp[i] = nz;
-            nz=0;
+            Ccp[i+1] = nz;
+            nz = 0;
         }
         free(index);
     }
 
     for (int i = 0; i < num_rows; i++){
-        Ccp[i+1] = Ccp[i]+ Ccp[i+1];
+        Ccp[i+1] = Ccp[i] + Ccp[i+1];
     }
-    Ccp[0] = 0;
-    Ccp[num_rows] = Ccp[num_rows] + 1;
 }
 
 void spgemm(const CSR A, const CSR B, CSR C){
@@ -64,6 +63,7 @@ void spgemm(const CSR A, const CSR B, CSR C){
     // temp accumulates a column of the product
     double * temp;
     int * next;
+    C->row_start[0] = 0;
 
     #pragma acc parallel firstprivate(temp[0:n], next[0:n])
     {
@@ -96,11 +96,6 @@ void spgemm(const CSR A, const CSR B, CSR C){
                 }
             }
 
-            for (int i = 0; i < n; i++){
-                printf("%f ", temp[i]);
-            }
-            printf("\n");
-
             int col_index = C->row_start[i];
 
             for (int cj = 0; cj < length; cj++){
@@ -125,14 +120,14 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
     struct timespec start, stop;
     double accum;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 10; i++) {
         if (A->n != B->m) {
             fprintf(stderr, "Invalid matrix sizes");
         }
 
         int C_m = A->m;
         int C_n = B->n;
-        int *Ccp = malloc((C_m + 1) * sizeof(int));
+        int *Ccp = malloc((C_m+1) * sizeof(int));
         get_nnz(C_m, C_n, A->row_start, A->col_indices, B->row_start, B->col_indices, Ccp);
         int C_nnz = Ccp[C_m];
         alloc_sparse_CSR(C_m, C_n, C_nnz, C);
