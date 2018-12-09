@@ -1,6 +1,7 @@
 // TODO make check
 // TODO Fix sort
 // TODO pull and merge latest
+// TODO check sum
 
 #include "utils.h"
 #include "stdlib.h"
@@ -54,9 +55,9 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
 //                printf("%d ", index[j]);
 //            } 
 //            printf(" END\n");
-            for (int j = 0; j < num_cols; j++){
-                index[j] = -1;
-            }
+//            for (int j = 0; j < num_cols; j++){
+//                index[j] = -1;
+//            }
         }
         free(index);
     }
