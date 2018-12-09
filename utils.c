@@ -258,11 +258,13 @@ void sort(COO coo){
     int nz = coo->NZ;
     int i = 0;
     int changes = 1;
+    int first = 0;
 
-    while(changes){
-        int first = i%2;
+    while(changes || !first){
+        first = i%2;
         changes = 0;
 
+        #pragma acc parallel loop
         for (int j = first; j < nz-1; j+=2){
             if( coo->row_indices[j] > coo->row_indices[j+1] )
             {
@@ -270,8 +272,8 @@ void sort(COO coo){
                 int tmp_col = coo->col_indices[j+1];
                 double tmp_data = coo->data[j+1];
 
-                coo->row_indices[j+1] = coo-> row_indices[j];
-                coo->col_indices[j+1] = coo-> col_indices[j];
+                coo->row_indices[j+1] = coo->row_indices[j];
+                coo->col_indices[j+1] = coo->col_indices[j];
                 coo->data[j+1] = coo-> data[j];
 
                 coo->row_indices[j] = tmp_row;
@@ -294,7 +296,7 @@ void coo_to_csr(COO coo, CSR *sparse) {
     alloc_sparse_CSR(m, n, NZ, &sp);
 
     //sort by row
-    //sort(coo);
+    sort(coo);
 
     //fill in non zeros
     memcpy(sp->data, coo->data, NZ * sizeof(double));
@@ -314,7 +316,7 @@ void coo_to_csr(COO coo, CSR *sparse) {
         row_sum += t;
     }
 
-    // TODO complete for single threaded or acc atomic
+//    // TODO complete for single threaded
 //    for (int i = 0; i < NZ; i++){
 //        int row = coo->row_indices[i];
 //        int index = sp->row_start[row];
@@ -322,6 +324,13 @@ void coo_to_csr(COO coo, CSR *sparse) {
 //        sp->data[index] = coo->data[i];
 //        sp->col_indices[index] = coo->col_indices[i];
 //        sp->row_start[row]++;
+//    }
+//
+//    // TODO similar to REWRITE
+//    for (int i = 0, last = 0; i <= m; i++){
+//        int temp = sp->row_start[i];
+//        sp->row_start[i] = last;
+//        last = temp;
 //    }
 
     *sparse = sp;

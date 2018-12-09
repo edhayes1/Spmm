@@ -51,21 +51,9 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
                 }
             }
             Ccp[i+1] = nz;
-//            for (int j = 0; j < num_cols; j++){
-//                printf("%d ", index[j]);
-//            } 
-//            printf(" END\n");
-//            for (int j = 0; j < num_cols; j++){
-//                index[j] = -1;
-//            }
         }
         free(index);
     }
-
-//    for (int i = 0; i < num_rows+1; i++){
-//        printf("%d ", Ccp[i]);
-//    }
-//    printf("\n");
 
     for (int i = 0; i < num_rows; i++){
         Ccp[i+1] = Ccp[i] + Ccp[i+1];
