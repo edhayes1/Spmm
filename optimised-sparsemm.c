@@ -1,3 +1,7 @@
+// TODO make check
+// TODO Fix sort
+// TODO pull and merge latest
+
 #include "utils.h"
 #include "stdlib.h"
 #include <stdio.h>
@@ -32,6 +36,7 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
         Ccp[0] = 0;
         #pragma acc loop
         for (int i = 0; i < num_rows; i++){
+            nz = 0;
             for (int j = Arp[i]; j < Arp[i+1]; j++){
                 int A_col_index = Acp[j];
 
@@ -45,10 +50,21 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
                 }
             }
             Ccp[i+1] = nz;
-            nz = 0;
+//            for (int j = 0; j < num_cols; j++){
+//                printf("%d ", index[j]);
+//            } 
+//            printf(" END\n");
+            for (int j = 0; j < num_cols; j++){
+                index[j] = -1;
+            }
         }
         free(index);
     }
+
+//    for (int i = 0; i < num_rows+1; i++){
+//        printf("%d ", Ccp[i]);
+//    }
+//    printf("\n");
 
     for (int i = 0; i < num_rows; i++){
         Ccp[i+1] = Ccp[i] + Ccp[i+1];
@@ -79,7 +95,6 @@ void spgemm(const CSR A, const CSR B, CSR C){
             int col_start = -2;
             int length = 0;
 
-            #pragma acc loop
             for (int n = A->row_start[i]; n < A->row_start[i+1]; n++){
                 int j = A->col_indices[n];
                 double x = A->data[n];
@@ -95,6 +110,11 @@ void spgemm(const CSR A, const CSR B, CSR C){
                     }
                 }
             }
+
+//            for (int i = 0; i < length; i++){
+//                printf("%lf ", temp[i]);
+//            }
+//            printf("\n");
 
             int col_index = C->row_start[i];
 
@@ -120,7 +140,7 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
     struct timespec start, stop;
     double accum;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 1; i++) {
         if (A->n != B->m) {
             fprintf(stderr, "Invalid matrix sizes");
         }
@@ -132,13 +152,14 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
         int C_nnz = Ccp[C_m];
         alloc_sparse_CSR(C_m, C_n, C_nnz, C);
         (*C)->row_start = Ccp;
+
         spgemm(A, B, *C);
     }
     clock_gettime(CLOCK_MONOTONIC, &stop);
     accum = ( stop.tv_sec - start.tv_sec )
             + ( stop.tv_nsec - start.tv_nsec )
               / 1000000000.0;
-    printf("time: %lf\n", (accum/10));
+    printf("time: %lf\n", (accum/1));
 }
 
 

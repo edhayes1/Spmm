@@ -252,16 +252,49 @@ void read_sparse(const char *file, COO *sparse)
     fclose(f);
 }
 
-//void transpose_COO(COO coo){
-//    coo ->
-//}
+// TODO change back to struct coords
+void sort(COO coo){
 
+    int nz = coo->NZ;
+    int i = 0;
+    int changes = 1;
+
+    while(changes){
+        int first = i%2;
+        changes = 0;
+
+        for (int j = first; j < nz-1; j+=2){
+            if( coo->row_indices[j] > coo->row_indices[j+1] )
+            {
+                int tmp_row = coo->row_indices[j+1];
+                int tmp_col = coo->col_indices[j+1];
+                double tmp_data = coo->data[j+1];
+
+                coo->row_indices[j+1] = coo-> row_indices[j];
+                coo->col_indices[j+1] = coo-> col_indices[j];
+                coo->data[j+1] = coo-> data[j];
+
+                coo->row_indices[j] = tmp_row;
+                coo->col_indices[j] = tmp_col;
+                coo->data[j] = tmp_data;
+                changes = 1;
+            }
+        }
+
+        i++;
+    }
+}
+
+// TODO make parallel when back in structs
 void coo_to_csr(COO coo, CSR *sparse) {
     CSR sp;
     int m = coo->m;
     int n = coo->n;
     int NZ = coo->NZ;
     alloc_sparse_CSR(m, n, NZ, &sp);
+
+    //sort by row
+    //sort(coo);
 
     //fill in non zeros
     memcpy(sp->data, coo->data, NZ * sizeof(double));
@@ -276,10 +309,20 @@ void coo_to_csr(COO coo, CSR *sparse) {
     }
 
     for (int i = 0, row_sum = 0; i <= m; i++){
-        int temp = sp->row_start[i];
+        int t = sp->row_start[i];
         sp->row_start[i] = row_sum;
-        row_sum += temp;
+        row_sum += t;
     }
+
+    // TODO complete for single threaded or acc atomic
+//    for (int i = 0; i < NZ; i++){
+//        int row = coo->row_indices[i];
+//        int index = sp->row_start[row];
+//
+//        sp->data[index] = coo->data[i];
+//        sp->col_indices[index] = coo->col_indices[i];
+//        sp->row_start[row]++;
+//    }
 
     *sparse = sp;
 }
