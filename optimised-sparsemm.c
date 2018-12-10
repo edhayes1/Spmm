@@ -1,8 +1,5 @@
-// TODO make check
-// TODO pull and merge latest
 // TODO fix fucked up CSR allocation
-// TODO revert to structs for coo
-// TODO check if compiled with acc and do stuff from master
+// TODO Merge Master!!!
 
 #include "utils.h"
 #include "stdlib.h"
