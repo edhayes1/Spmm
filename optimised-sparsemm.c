@@ -112,15 +112,7 @@ void optimised_sparsemm(const COO A, const COO B, COO *C)
     coo_to_csr(A, &A_csr);
     coo_to_csr(B, &B_csr);
 
-    // get dimensions of C
-    int C_m = A->m;
-    int C_n = B->n;
-
-    // estimate number of NZ (2 times the sum of nz input)
-    int C_nnz = 2*(A->NZ + B->NZ);
-    alloc_sparse_CSR(C_m, C_n, C_nnz, &C_csr);
-
-    spgemm(A_csr, B_csr, C_csr);
+    optimised_sparsemm_CSR(A_csr, B_csr, &C_csr);
 
     //convert product back to COO, free CSRs
     csr_to_coo(C_csr, C);
