@@ -2,7 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <string.h>
+#include <limits.h>
+#include <stdint.h>
 #include "utils.h"
+
+
+#ifdef _MSC_VER
+double drand48()
+{
+  return (double)rand()/(RAND_MAX + 1);
+}
+#endif  /* _MSC_VER */
 
 /*
  * Allocate a dense matrix
@@ -12,7 +23,7 @@
  */
 void alloc_dense(int m, int n, double **dense)
 {
-    posix_memalign((void **)dense, 64, m*n*sizeof(**dense));
+  *dense = malloc(m*n*sizeof(**dense));
 }
 
 /*
@@ -57,8 +68,7 @@ void alloc_sparse(int m, int n, int NZ, COO *sparse)
     sp->m = m;
     sp->n = n;
     sp->NZ = NZ;
-    sp->row_indices = calloc(NZ, sizeof(int));
-    sp->col_indices = calloc(NZ, sizeof(int));
+    sp->coords = calloc(NZ, sizeof(struct coord));
     sp->data = calloc(NZ, sizeof(double));
     *sparse = sp;
 }
@@ -86,8 +96,7 @@ void free_sparse(COO *sparse)
     if (!sp) {
         return;
     }
-    free(sp->row_indices);
-    free(sp->col_indices);
+    free(sp->coords);
     free(sp->data);
     free(sp);
     *sparse = NULL;
@@ -119,8 +128,8 @@ void convert_sparse_to_dense(const COO sparse, double **dense)
     alloc_dense(sparse->m, sparse->n, dense);
     zero_dense(sparse->m, sparse->n, *dense);
     for (n = 0; n < sparse->NZ; n++) {
-        i = sparse->row_indices[n];
-        j = sparse->col_indices[n];
+        i = sparse->coords[n].i;
+        j = sparse->coords[n].j;
         (*dense)[j * sparse->m + i] = sparse->data[n];
     }
 }
@@ -158,8 +167,8 @@ void convert_dense_to_sparse(const double *dense, int m, int n,
         for (j = 0; j < n; j++) {
             double val = dense[j*m + i];
             if (fabs(val) > 1e-15) {
-                sp->row_indices[NZ] = i;
-                sp->col_indices[NZ] = j;
+                sp->coords[NZ].i = i;
+                sp->coords[NZ].j = j;
                 sp->data[NZ] = val;
                 NZ++;
             }
@@ -185,6 +194,8 @@ void random_matrix(int m, int n, double frac, COO *sparse)
         for (i = 0; i < m; i++) {
             if (drand48() < frac) {
                 d[j*m + i] = drand48();
+            } else {
+              d[j*m + i] = 0.0;
             }
         }
     }
@@ -215,7 +226,7 @@ void read_sparse(const char *file, COO *sparse)
         fclose(f);
         exit(1);
     }
-    if (NZ > m*n) {
+    if (NZ > (uint64_t)m*n) {
         fprintf(stderr, "More nonzeros (%d) than matrix entries (%d x %d)!\n", NZ, m, n);
         fclose(f);
         exit(1);
@@ -235,8 +246,8 @@ void read_sparse(const char *file, COO *sparse)
             free_sparse(&sp);
             exit(1);
         }
-        sp->row_indices[k] = i;
-        sp->col_indices[k] = j;
+        sp->coords[k].i = i;
+        sp->coords[k].j = j;
         sp->data[k] = val;
         k++;
     }
@@ -261,24 +272,31 @@ void coo_to_csr(COO coo, CSR *sparse) {
     int m = coo->m;
     int n = coo->n;
     int NZ = coo->NZ;
+    int * temp_rp = calloc(m+1, sizeof(int));
     alloc_sparse_CSR(m, n, NZ, &sp);
-
-    //fill in non zeros
-    memcpy(sp->data, coo->data, NZ * sizeof(double));
-
-    //fill in column indices
-    memcpy(sp->col_indices, coo->col_indices, NZ * sizeof(int));
 
     //get num nz per row (inplace)
     for(int i = 0; i < NZ; i++){
-        sp->row_start[coo->row_indices[i]]++;
+        temp_rp[coo->coords[i].i]++;
     }
 
     for (int i = 0, row_sum = 0; i <= m; i++){
-        int temp = sp->row_start[i];
-        sp->row_start[i] = row_sum;
+        int temp = temp_rp[i];
+        temp_rp[i] = row_sum;
         row_sum += temp;
     }
+
+    memcpy(sp->row_start, temp_rp, (m+1) * sizeof(int));
+
+    for (int i = 0; i < NZ; i++){
+        int row = coo->coords[i].i;
+        int index = temp_rp[row];
+        sp->data[index] = coo->data[i];
+        sp->col_indices[index] = coo->coords[i].j;
+        temp_rp[row]++;
+    }
+
+    free(temp_rp);
 
     *sparse = sp;
 }
@@ -294,7 +312,9 @@ void csr_to_coo(CSR csr, COO *sparse){
     memcpy(sp->data, csr->data, NZ * sizeof(double));
 
     //fill in column indices
-    memcpy(sp->col_indices, csr->col_indices, NZ * sizeof(int));
+    for (int i = 0; i < NZ; i++){
+        sp->coords[i].j = csr->col_indices[i];
+    }
 
     //get num nz per row
     int *temp;
@@ -302,25 +322,16 @@ void csr_to_coo(CSR csr, COO *sparse){
     for (int i = 0; i < m; i++){
         temp[i] = csr->row_start[i+1] - csr->row_start[i];
     }
+
     //fill row nums
     for (int i = 0, idx = 0; i < m; i++){
         for (int r = 0; r < temp[i]; r++){
-            sp->row_indices[idx] = i;
+            sp->coords[idx].i = i;
             idx++;
         }
     }
 
     *sparse = sp;
-}
-
-void transpose_COO(COO * coo){
-    int new_num_cols = (*coo)->m;
-    (*coo)->m = (*coo)->n;
-    (*coo)->n = new_num_cols;
-
-    int * temp = (*coo)->row_indices;
-    (*coo)->row_indices = (*coo)->col_indices;
-    (*coo)->col_indices = temp;
 }
 
 /*
@@ -334,7 +345,7 @@ void write_sparse(FILE *f, COO sp)
     int i;
     fprintf(f, "%d %d %d\n", sp->m, sp->n, sp->NZ);
     for (i = 0; i < sp->NZ; i++) {
-        fprintf(f, "%d %d %g\n", sp->row_indices[i], sp->col_indices[i], sp->data[i]);
+        fprintf(f, "%d %d %.15g\n", sp->coords[i].i, sp->coords[i].j, sp->data[i]);
     }
 }
 
@@ -346,4 +357,76 @@ void write_sparse(FILE *f, COO sp)
 void print_sparse(COO sp)
 {
     write_sparse(stdout, sp);
+}
+
+void read_sparse_binary(const char *file, COO *sparse)
+{
+    COO sp;
+    int m, n, NZ;
+    size_t nread;
+    FILE *f = fopen(file, "r");
+    if (!f) {
+        fprintf(stderr, "Unable to open %s for reading.\n", file);
+        exit(1);
+    }
+    nread = fread(&m, sizeof(m), 1, f);
+    if (nread != 1) {
+      fprintf(stderr, "Did not read rows from file\n");
+      exit(1);
+    }
+    nread = fread(&n, sizeof(n), 1, f);
+    if (nread != 1) {
+      fprintf(stderr, "Did not read columns from file\n");
+      exit(1);
+    }
+    nread = fread(&NZ, sizeof(NZ), 1, f);
+    if (nread != 1) {
+      fprintf(stderr, "Did not read number of nonzeros from file\n");
+      exit(1);
+    }
+    alloc_sparse(m, n, NZ, &sp);
+    nread = fread(sp->coords, sizeof(*sp->coords), NZ, f);
+    if (nread != NZ) {
+      fprintf(stderr, "Did not read nonzero locations from file\n");
+      exit(1);
+    }
+    nread = fread(sp->data, sizeof(*sp->data), NZ, f);
+    if (nread != NZ) {
+      fprintf(stderr, "Did not read nonzero values from file\n");
+      exit(1);
+    }
+    *sparse = sp;
+    fclose(f);
+}
+
+void write_sparse_binary(FILE *f, COO sp)
+{
+  size_t nwrite;
+  nwrite = fwrite(&(sp->m), sizeof(sp->m), 1, f);
+  if (nwrite != 1) {
+    fprintf(stderr, "Could not write rows to output file\n");
+    exit(1);
+  }
+
+  nwrite = fwrite(&(sp->n), sizeof(sp->n), 1, f);
+  if (nwrite != 1) {
+    fprintf(stderr, "Could not write columns to output file\n");
+    exit(1);
+  }
+
+  nwrite = fwrite(&(sp->NZ), sizeof(sp->NZ), 1, f);
+  if (nwrite != 1) {
+    fprintf(stderr, "Could not write number of nonzeros to output file\n");
+    exit(1);
+  }
+  nwrite = fwrite(sp->coords, sizeof(*sp->coords), sp->NZ, f);
+  if (nwrite != sp->NZ) {
+    fprintf(stderr, "Could not write nonzero locations to output file\n");
+    exit(1);
+  }
+  nwrite = fwrite(sp->data, sizeof(*sp->data), sp->NZ, f);
+  if (nwrite != sp->NZ) {
+    fprintf(stderr, "Could not write nonzero values to output file\n");
+    exit(1);
+  }
 }

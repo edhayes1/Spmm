@@ -10,10 +10,9 @@ void basic_sparsemm_sum(const COO, const COO, const COO,
                             const COO, const COO, const COO,
                             COO *);
 void optimised_sparsemm(const COO, const COO, COO*);
-void optimised_sparsemm_CSR(const CSR, const CSR, CSR*);
-void optimised_sparsemm_sum(const CSR, const CSR, const CSR,
-                            const CSR, const CSR, const CSR,
-                            CSR *);
+void optimised_sparsemm_sum(const COO, const COO, const COO,
+                            const COO, const COO, const COO,
+                            COO *);
 
 static int check_sparsemm()
 {
@@ -99,22 +98,27 @@ static int check_sparsemm_sum()
 
     return pass;
 }
+
 int main(int argc, char **argv)
 {
     COO O;
     FILE *f;
-    if (!(argc == 2 || argc == 4 || argc == 8)) {
+
+    void (*reader)(const char *, COO *) = &read_sparse;
+    void (*writer)(FILE *, COO) = &write_sparse;
+    if (!(argc == 2 || argc == 4 || argc == 8 || argc == 5 || argc == 9)) {
         fprintf(stderr, "Invalid arguments.\n");
         fprintf(stderr, "Usage: %s CHECK\n", argv[0]);
         fprintf(stderr, "  Check the implemented routines using randomly generated matrices.\n");
-        fprintf(stderr, "Alternate usage: %s O A B\n", argv[0]);
+        fprintf(stderr, "Alternate usage: %s [--binary] O A B\n", argv[0]);
         fprintf(stderr, "  Computes O = A B\n");
         fprintf(stderr, "  Where A and B are filenames of matrices to read.\n");
         fprintf(stderr, "  O is the filename of the matrix to be written.\n\n");
-        fprintf(stderr, "Alternate usage: %s O A B C D E F\n", argv[0]);
+        fprintf(stderr, "Alternate usage: %s [--binary] O A B C D E F\n", argv[0]);
         fprintf(stderr, "  Computes O = (A + B + C) (D + E + F)\n");
         fprintf(stderr, "  Where A-F are the files names of matrices to read.\n");
         fprintf(stderr, "  O is the filename of the matrix to be written.\n\n");
+        fprintf(stderr, "If the --binary flag is given use binary reading and writing of matrices.\n\n");
         return 1;
     }
 
@@ -127,56 +131,36 @@ int main(int argc, char **argv)
         pass |= check_sparsemm();
         pass |= check_sparsemm_sum();
         return pass;
-    } else if (argc == 4) {
-
+    }
+    if (argc == 5 || argc == 9) {
+      if (strcmp(argv[1], "--binary") != 0) {
+        fprintf(stderr, "Expecting flag --binary, not '%s'\n", argv[1]);
+        return 1;
+      }
+      reader = &read_sparse_binary;
+      writer = &write_sparse_binary;
+      argc--;
+      argv++;
+    }
+    if (argc == 4) {
         COO A, B;
-        read_sparse(argv[2], &A);
-        read_sparse(argv[3], &B);
+        reader(argv[2], &A);
+        reader(argv[3], &B);
+        optimised_sparsemm(A, B, &O);
 
-        CSR A_csr, B_csr, C;
-        coo_to_csr(A, &A_csr);
-        coo_to_csr(B, &B_csr);
-
-        // compute the product from CSRs As and Bc, get a CSR back
-        optimised_sparsemm_CSR(A_csr, B_csr, &C);
-
-        // convert product to COO
-        csr_to_coo(C, &O);
-        
         free_sparse(&A);
         free_sparse(&B);
-        free_CSR(&A_csr);
-        free_CSR(&B_csr);
-        free_CSR(&C);
-
     } else {
         COO A, B, C, D, E, F;
-        read_sparse(argv[2], &A);
-        read_sparse(argv[3], &B);
-        read_sparse(argv[4], &C);
-        read_sparse(argv[5], &D);
-        read_sparse(argv[6], &E);
-        read_sparse(argv[7], &F);
+        reader(argv[2], &A);
+        reader(argv[3], &B);
+        reader(argv[4], &C);
+        reader(argv[5], &D);
+        reader(argv[6], &E);
+        reader(argv[7], &F);
 
-        CSR A_csr, B_csr, C_csr, D_csr, E_csr, F_csr, ret;
-        coo_to_csr(A, &A_csr);
-        coo_to_csr(B, &B_csr);
-        coo_to_csr(C, &C_csr);
-        coo_to_csr(D, &D_csr);
-        coo_to_csr(E, &E_csr);
-        coo_to_csr(F, &F_csr);
+        optimised_sparsemm_sum(A, B, C, D, E, F, &O);
 
-        optimised_sparsemm_sum(A_csr, B_csr, C_csr, D_csr, E_csr, F_csr, &ret);
-
-        csr_to_coo(ret, &O);
-
-        free_CSR(&A_csr);
-        free_CSR(&B_csr);
-        free_CSR(&C_csr);
-        free_CSR(&D_csr);
-        free_CSR(&E_csr);
-        free_CSR(&F_csr);
-        free_CSR(&ret);
         free_sparse(&A);
         free_sparse(&B);
         free_sparse(&C);
@@ -186,7 +170,11 @@ int main(int argc, char **argv)
     }
 
     f = fopen(argv[1], "w");
-    write_sparse(f, O);
+    if (!f) {
+      fprintf(stderr, "Unable to open %s for writing output.\n", argv[1]);
+      exit(1);
+    }
+    writer(f, O);
     free_sparse(&O);
     fclose(f);
     return 0;

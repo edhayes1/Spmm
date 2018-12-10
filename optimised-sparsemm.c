@@ -8,12 +8,6 @@ void basic_sparsemm_sum(const COO, const COO, const COO,
                         const COO, const COO, const COO,
                         COO *);
 
-/* Computes C = A*B.
- * C should be allocated by this routine.
- */
-void optimised_sparsemm(const COO A, const COO B, COO *C){
-    return basic_sparsemm(A, B, C);
-}
 
 void spgemm(const CSR A, const CSR B, CSR C){
     // get C dimensions
@@ -89,11 +83,8 @@ void spgemm(const CSR A, const CSR B, CSR C){
     // strip off the excess from the estimation. No need to do a realloc.
     C->NZ = nnz_counter;
 }
-/*
- * get the nnz so C can be allocated, then do the multiplication.
- */
-void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
-{
+
+void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C){
     // get dimensions of C
     int C_m = A->m;
     int C_n = B->n;
@@ -102,6 +93,30 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C)
     alloc_sparse_CSR(C_m, C_n, C_nnz, C);
 
     spgemm(A, B, *C);
+}
+
+/* Computes C = A*B.
+ * C should be allocated by this routine.
+ */
+void optimised_sparsemm(const COO A, const COO B, COO *C)
+{
+    CSR A_csr, B_csr, C_csr;
+    coo_to_csr(A, &A_csr);
+    coo_to_csr(B, &B_csr);
+
+    // get dimensions of C
+    int C_m = A->m;
+    int C_n = B->n;
+    // estimate number of NZ
+    int C_nnz = 2*(A->NZ + B->NZ);
+    alloc_sparse_CSR(C_m, C_n, C_nnz, &C_csr);
+
+    spgemm(A_csr, B_csr, C_csr);
+
+    csr_to_coo(C_csr, C);
+    free_CSR(&A_csr);
+    free_CSR(&B_csr);
+    free_CSR(&C_csr);
 }
 
 
@@ -175,19 +190,36 @@ void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
 /* Computes O = (A + B + C) (D + E + F).
  * O should be allocated by this routine.
  */
-void optimised_sparsemm_sum(const CSR A, const CSR B, const CSR C,
-                            const CSR D, const CSR E, const CSR F,
-                            CSR *R)
+void optimised_sparsemm_sum(const COO A, const COO B, const COO C,
+                            const COO D, const COO E, const COO F,
+                            COO *O)
 {
-    CSR ABC, DEF;
-    int nnz_ABC = A->NZ + B->NZ + C->NZ;
-    int nnz_DEF = D->NZ + E->NZ + F->NZ;
+    CSR A_csr, B_csr, C_csr, D_csr, E_csr, F_csr, ABC, DEF, ret;
+    coo_to_csr(A, &A_csr);
+    coo_to_csr(B, &B_csr);
+    coo_to_csr(C, &C_csr);
+    coo_to_csr(D, &D_csr);
+    coo_to_csr(E, &E_csr);
+    coo_to_csr(F, &F_csr);
 
-    alloc_sparse_CSR(A->m, A->n, nnz_ABC, &ABC);
-    alloc_sparse_CSR(D->m, D->n, nnz_DEF, &DEF);
+    int nnz_ABC = A_csr->NZ + B_csr->NZ + C_csr->NZ;
+    int nnz_DEF = D_csr->NZ + E_csr->NZ + F_csr->NZ;
 
-    sum(A, B, C, ABC);
-    sum(D, E, F, DEF);
+    alloc_sparse_CSR(A_csr->m, A_csr->n, nnz_ABC, &ABC);
+    alloc_sparse_CSR(D_csr->m, D_csr->n, nnz_DEF, &DEF);
 
-    optimised_sparsemm_CSR(ABC, DEF, R);
+    sum(A_csr, B_csr, C_csr, ABC);
+    sum(D_csr, E_csr, F_csr, DEF);
+
+    optimised_sparsemm_CSR(ABC, DEF, &ret);
+
+    csr_to_coo(ret, O);
+
+    free_CSR(&A_csr);
+    free_CSR(&B_csr);
+    free_CSR(&C_csr);
+    free_CSR(&D_csr);
+    free_CSR(&E_csr);
+    free_CSR(&F_csr);
+    free_CSR(&ret);
 }

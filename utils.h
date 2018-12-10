@@ -3,10 +3,13 @@
 
 #include <stdio.h>
 
+struct coord {
+    int i, j;
+};
+
 struct _p_COO {
     int m, n, NZ;
-    int * row_indices;
-    int * col_indices;
+    struct coord * coords;
     double *data;
 };
 
@@ -37,6 +40,8 @@ void transpose_COO(COO *);
 
 void read_sparse(const char *, COO *);
 void write_sparse(FILE *, COO);
+void read_sparse_binary(const char *, COO *);
+void write_sparse_binary(FILE *, COO);
 void print_sparse(COO);
 void random_matrix(int, int, double, COO *);
 
