@@ -85,6 +85,19 @@ void alloc_sparse_CSR(int m, int n, int NZ, CSR *sparse)
     *sparse = sp;
 }
 
+void alloc_sparse_CSR_with_rp(int m, int n, int * rp, CSR *sparse)
+{
+    CSR sp = calloc(1, sizeof(struct _p_CSR));
+    int NZ = rp[m];
+    sp->m = m;
+    sp->n = n;
+    sp->NZ = NZ;
+    sp->data = calloc(NZ, sizeof(double));
+    sp->col_indices = calloc(NZ, sizeof(int));
+    sp->row_start = rp;
+    *sparse = sp;
+}
+
 
 /*
  * Free a sparse matrix.
@@ -263,9 +276,40 @@ void read_sparse(const char *file, COO *sparse)
     fclose(f);
 }
 
-//void transpose_COO(COO coo){
-//    coo ->
-//}
+
+void sort(COO coo){
+
+    int nz = coo->NZ;
+    int i = 0;
+    int changes = 1;
+    int first = 0;
+
+    while(changes || !first){
+        first = i%2;
+        changes = 0;
+
+        #pragma acc parallel loop
+        for (int j = first; j < nz-1; j+=2){
+            if( coo->coords[j].i > coo->coords[j+1].i )
+            {
+                int tmp_row = coo->coords[j+1].i;
+                int tmp_col = coo->coords[j+1].j;
+                double tmp_data = coo->data[j+1];
+
+                coo->coords[j+1].i = coo->coords[j].i;
+                coo->coords[j+1].j = coo->coords[j].j;
+                coo->data[j+1] = coo-> data[j];
+
+                coo->coords[j].i = tmp_row;
+                coo->coords[j].j = tmp_col;
+                coo->data[j] = tmp_data;
+                changes = 1;
+            }
+        }
+
+        i++;
+    }
+}
 
 void coo_to_csr(COO coo, CSR *sparse) {
     CSR sp;
@@ -275,7 +319,21 @@ void coo_to_csr(COO coo, CSR *sparse) {
     int * temp_rp = calloc(m+1, sizeof(int));
     alloc_sparse_CSR(m, n, NZ, &sp);
 
-    //get num nz per row (inplace)
+    // bubble sort
+    #ifdef multi
+        sort(coo);
+    #endif
+
+    //fill in non zeros
+    memcpy(sp->data, coo->data, NZ * sizeof(double));
+
+    //fill in column indices
+    for (int i = 0; i < NZ; i++){
+        sp->col_indices[i]= coo->coords[i].j;
+    }
+
+    //get num nz per row
+    #pragma acc parallel loop
     for(int i = 0; i < NZ; i++){
         temp_rp[coo->coords[i].i]++;
     }
@@ -288,13 +346,16 @@ void coo_to_csr(COO coo, CSR *sparse) {
 
     memcpy(sp->row_start, temp_rp, (m+1) * sizeof(int));
 
-    for (int i = 0; i < NZ; i++){
-        int row = coo->coords[i].i;
-        int index = temp_rp[row];
-        sp->data[index] = coo->data[i];
-        sp->col_indices[index] = coo->coords[i].j;
-        temp_rp[row]++;
-    }
+    //if not parallel, sort with single threaded
+    #if !defined(multi)
+        for (int i = 0; i < NZ; i++){
+            int row = coo->coords[i].i;
+            int index = temp_rp[row];
+            sp->data[index] = coo->data[i];
+            sp->col_indices[index] = coo->coords[i].j;
+            temp_rp[row]++;
+        }
+    #endif
 
     free(temp_rp);
 
@@ -312,13 +373,14 @@ void csr_to_coo(CSR csr, COO *sparse){
     memcpy(sp->data, csr->data, NZ * sizeof(double));
 
     //fill in column indices
+    #pragma acc parallel loop
     for (int i = 0; i < NZ; i++){
         sp->coords[i].j = csr->col_indices[i];
     }
 
     //get num nz per row
-    int *temp;
-    temp = calloc(m, sizeof(int));
+    int * temp = calloc(m, sizeof(int));
+    #pragma acc parallel loop
     for (int i = 0; i < m; i++){
         temp[i] = csr->row_start[i+1] - csr->row_start[i];
     }

@@ -1,5 +1,6 @@
-CFLAGS = -O3 -Minfo -acc -ta=multicore -Msafeptr -D_GNU_SOURCE 
-LDFLAGS = -lm
+CFLAGS = 
+override CFLAGS += -O3 -g -D_GNU_SOURCE
+LDFLAGS = -lm -g
 CC = pgcc
 
 OBJ = optimised-sparsemm.o basic-sparsemm.o utils.o

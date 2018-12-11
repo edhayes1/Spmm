@@ -25,6 +25,7 @@ typedef struct _p_COO *COO;
 
 void alloc_sparse(int, int, int, COO*);
 void alloc_sparse_CSR(int, int, int, CSR*);
+void alloc_sparse_CSR_with_rp(int, int, int*, CSR*);
 void free_sparse(COO*);
 void free_CSR(CSR*);
 void alloc_dense(int, int, double **);
@@ -35,8 +36,6 @@ void convert_sparse_to_dense(const COO, double **);
 void convert_dense_to_sparse(const double *, int, int, COO *);
 void coo_to_csr(const COO, CSR *);
 void csr_to_coo(const CSR, COO *);
-
-void transpose_COO(COO *);
 
 void read_sparse(const char *, COO *);
 void write_sparse(FILE *, COO);
