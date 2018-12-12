@@ -73,6 +73,7 @@ void alloc_sparse(int m, int n, int NZ, COO *sparse)
     *sparse = sp;
 }
 
+// TODO change col_indeces and row start
 void alloc_sparse_CSR(int m, int n, int NZ, CSR *sparse)
 {
     CSR sp = calloc(1, sizeof(struct _p_CSR));
@@ -85,6 +86,7 @@ void alloc_sparse_CSR(int m, int n, int NZ, CSR *sparse)
     *sparse = sp;
 }
 
+// TODO ignore for now
 void alloc_sparse_CSR_with_rp(int m, int n, int * rp, CSR *sparse)
 {
     CSR sp = calloc(1, sizeof(struct _p_CSR));
@@ -115,6 +117,7 @@ void free_sparse(COO *sparse)
     *sparse = NULL;
 }
 
+//TODO vairables can change
 void free_CSR(CSR *sparse)
 {
     CSR sp = *sparse;
@@ -276,7 +279,7 @@ void read_sparse(const char *file, COO *sparse)
     fclose(f);
 }
 
-
+// TODO ignore for now
 //void sort(COO coo){
 //
 //    int nz = coo->NZ;
@@ -314,6 +317,7 @@ void read_sparse(const char *file, COO *sparse)
 //
 //}
 
+//TODO rewrite
 void coo_to_csr(COO coo, CSR *sparse) {
     CSR sp;
     int m = coo->m;
@@ -364,6 +368,7 @@ void coo_to_csr(COO coo, CSR *sparse) {
     *sparse = sp;
 }
 
+// TODO rewrite
 void csr_to_coo(CSR csr, COO *sparse){
     COO sp;
     int m = csr->m;

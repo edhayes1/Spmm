@@ -13,6 +13,7 @@ struct _p_COO {
     double *data;
 };
 
+// TODO do a CSR data structure, change member names
 struct _p_CSR {
     int m, n, NZ;
     double *data;   //just all the data.
