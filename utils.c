@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <string.h>
 #include <limits.h>
 #include <stdint.h>
 #include "utils.h"
@@ -286,7 +285,6 @@ void coo_to_csr(COO coo, CSR *sparse) {
     alloc_sparse_CSR(m, n, NZ, &sp);
 
     //get num nz per row
-    #pragma acc parallel loop
     for(int i = 0; i < NZ; i++){
         temp_rp[coo->coords[i].i]++;
     }
@@ -299,13 +297,11 @@ void coo_to_csr(COO coo, CSR *sparse) {
 
     memcpy(sp->row_start, temp_rp, (m+1) * sizeof(int));
 
-    #pragma acc parallel loop
     for (int i = 0; i < NZ; i++){
         int row = coo->coords[i].i;
         int index = temp_rp[row];
         sp->data[index] = coo->data[i];
         sp->col_indices[index] = coo->coords[i].j;
-        #pragma acc atomic update
         temp_rp[row]++;
     }
 

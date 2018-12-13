@@ -13,7 +13,7 @@ void basic_sparsemm_sum(const COO, const COO, const COO,
  *  Arp = A_row_pointer, Acp = A_column_pointer
  *  In the future, want to estimate nnz not spend time calculating it directly
  */
-void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp, int *Crp){
+void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp, int *ret){
     int * index;
     int nz = 0;
 
@@ -22,7 +22,7 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
         index = malloc(num_cols * sizeof(int));
         memset(index, -1, num_cols*sizeof(int));
 
-        Crp[0] = 0;
+        ret[0] = 0;
         #pragma acc loop
         for (int i = 0; i < num_rows; i++){
             nz = 0;
@@ -33,18 +33,19 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
                     int B_col_index = Bcp[k];
 
                     if(index[B_col_index] != i){
-                        index[B_col_index] = i;
                         nz++;
+                        index[B_col_index] = i;
                     }
                 }
             }
-            Crp[i+1] = nz;
+            // add to row pointer
+            ret[i+1] = nz;
         }
         free(index);
     }
-
+    // cumulate at end
     for (int i = 0; i < num_rows; i++){
-        Crp[i+1] = Crp[i] + Crp[i+1];
+        ret[i+1] = ret[i] + ret[i+1];
     }
 }
 
@@ -56,15 +57,15 @@ void spgemm(const CSR A, const CSR B, CSR C) {
 
     // temp accumulates a row of the product
     double *temp;
-    int *next;
+    int *index;
     C->row_start[0] = 0;
 
-    #pragma acc parallel firstprivate(temp[0:n], next[0:n])
+    #pragma acc parallel firstprivate(temp[0:n], index[0:n])
     {
         temp = calloc(n, sizeof(double));
         // next keeps track of which columns have entries in - init to -1
-        next = malloc(n * sizeof(int));
-        memset(next, -1, n * sizeof(int));
+        index = malloc(n * sizeof(int));
+        memset(index, -1, n * sizeof(int));
 
         #pragma acc loop
         for (int i = 0; i < m; i++) {
@@ -82,8 +83,8 @@ void spgemm(const CSR A, const CSR B, CSR C) {
                     temp[k_col] += x * B->data[k];
 
                     //if product doesnt have element in column, add it
-                    if (next[k_col] == -1) {
-                        next[k_col] = pos;
+                    if (index[k_col] == -1) {
+                        index[k_col] = pos;
                         pos = k_col;
                         nnz_row++;
                     }
@@ -118,8 +119,8 @@ void spgemm(const CSR A, const CSR B, CSR C) {
 
                 // reset next and temp for each row
                 int t = pos;
-                pos = next[pos];
-                next[t] = -1;
+                pos = index[pos];
+                index[t] = -1;
                 temp[t] = 0;
             }
 
