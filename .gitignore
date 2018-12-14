@@ -1,3 +1,4 @@
+*.optrpt
 larger-matrices/
 /*.o
 /sparsemm

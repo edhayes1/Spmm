@@ -145,12 +145,12 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C){
     int C_n = B->n;
 
     #if defined(multi)
-        int * Ccp = malloc((C_m+1) * sizeof(int));
+        int * Ccp  = malloc((C_m+1) * sizeof(int));
         get_nnz(C_m, C_n, A->row_start, A->col_indices, B->row_start, B->col_indices, Ccp);
         alloc_sparse_CSR_with_rp(C_m, C_n, Ccp, C);
     #else
         // estimate number of NZ
-        int C_nnz = 2*(A->NZ + B->NZ);
+        int C_nnz = 5*(A->NZ + B->NZ);
         alloc_sparse_CSR(C_m, C_n, C_nnz, C);
     #endif
 
