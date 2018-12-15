@@ -12,7 +12,7 @@ struct _p_COO {
     struct coord * coords;
     double *data;
 };
-
+//todo rewrite
 struct _p_CSR {
     int m, n, NZ;
     double *data;   //just all the data.

@@ -71,29 +71,31 @@ void alloc_sparse(int m, int n, int NZ, COO *sparse)
     sp->data = calloc(NZ, sizeof(double));
     *sparse = sp;
 }
-
+//todo rewrite
 void alloc_sparse_CSR(int m, int n, int NZ, CSR *sparse)
 {
     CSR sp = calloc(1, sizeof(struct _p_CSR));
-    sp->m = m;
-    sp->n = n;
-    sp->NZ = NZ;
-    sp->data = calloc(NZ, sizeof(double));
-    sp->col_indices = calloc(NZ, sizeof(int));
-    sp->row_start = calloc(m+1, sizeof(int));
+    (*sp).n =n;
+    (*sp).NZ =NZ;
+    (*sp).m =m;
+
+    (*sp).data = calloc(NZ, sizeof(double));
+    (*sp).row_start = calloc(m+1, sizeof(int));
+    (*sp).col_indices = calloc(NZ, sizeof(int));
+
     *sparse = sp;
 }
-
+//todo rewrite
 void alloc_sparse_CSR_with_rp(int m, int n, int * rp, CSR *sparse)
 {
     CSR sp = calloc(1, sizeof(struct _p_CSR));
     int NZ = rp[m];
-    sp->m = m;
-    sp->n = n;
-    sp->NZ = NZ;
-    sp->data = calloc(NZ, sizeof(double));
-    sp->col_indices = calloc(NZ, sizeof(int));
-    sp->row_start = rp;
+    (*sp).n = n;
+    (*sp).NZ = NZ;
+    (*sp).m = m;
+    (*sp).col_indices = calloc(NZ, sizeof(int));
+    (*sp).row_start = rp;
+    (*sp).data = calloc(NZ, sizeof(int));
     *sparse = sp;
 }
 
@@ -113,7 +115,7 @@ void free_sparse(COO *sparse)
     free(sp);
     *sparse = NULL;
 }
-
+//todo rewrite
 void free_CSR(CSR *sparse)
 {
     CSR sp = *sparse;
@@ -275,74 +277,9 @@ void read_sparse(const char *file, COO *sparse)
     fclose(f);
 }
 
+//todo rewrite
 
-void coo_to_csr(COO coo, CSR *sparse) {
-    CSR sp;
-    int m = coo->m;
-    int n = coo->n;
-    int NZ = coo->NZ;
-    int * temp_rp = calloc(m+1, sizeof(int));
-    alloc_sparse_CSR(m, n, NZ, &sp);
-
-    //get num nz per row
-    for(int i = 0; i < NZ; i++){
-        temp_rp[coo->coords[i].i]++;
-    }
-
-    for (int i = 0, row_sum = 0; i <= m; i++){
-        int temp = temp_rp[i];
-        temp_rp[i] = row_sum;
-        row_sum += temp;
-    }
-
-    memcpy(sp->row_start, temp_rp, (m+1) * sizeof(int));
-
-    for (int i = 0; i < NZ; i++){
-        int row = coo->coords[i].i;
-        int index = temp_rp[row];
-        sp->data[index] = coo->data[i];
-        sp->col_indices[index] = coo->coords[i].j;
-        temp_rp[row]++;
-    }
-
-    free(temp_rp);
-
-    *sparse = sp;
-}
-
-void csr_to_coo(CSR csr, COO *sparse){
-    COO sp;
-    int m = csr->m;
-    int n = csr->n;
-    int NZ = csr->NZ;
-    alloc_sparse(m,n, NZ, &sp);
-
-    //fill in non zeros
-    memcpy(sp->data, csr->data, NZ * sizeof(double));
-
-    //fill in column indices
-    #pragma acc parallel loop
-    for (int i = 0; i < NZ; i++){
-        sp->coords[i].j = csr->col_indices[i];
-    }
-
-    //get num nz per row
-    int * temp = calloc(m, sizeof(int));
-    #pragma acc parallel loop
-    for (int i = 0; i < m; i++){
-        temp[i] = csr->row_start[i+1] - csr->row_start[i];
-    }
-
-    //fill row nums
-    for (int i = 0, idx = 0; i < m; i++){
-        for (int r = 0; r < temp[i]; r++){
-            sp->coords[idx].i = i;
-            idx++;
-        }
-    }
-
-    *sparse = sp;
-}
+//todo rewrite
 
 /*
  * Write a sparse matrix to a file.
@@ -440,3 +377,5 @@ void write_sparse_binary(FILE *f, COO sp)
     exit(1);
   }
 }
+
+

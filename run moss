@@ -1,0 +1,1 @@
+./moss -l c -d -b /home/original/CLionProjects/ccs-l3-coursework-2018/optimised-sparsemm.c -b /home/original/CLionProjects/ccs-l3-coursework-2018/sparsemm.c -b /home/original/CLionProjects/ccs-l3-coursework-2018/basic-sparsemm.c -b /home/original/CLionProjects/ccs-l3-coursework-2018/utils.c  ./*.c /home/original/CLionProjects/Spmm1/optimised-sparsemm.c
