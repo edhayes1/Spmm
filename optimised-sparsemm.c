@@ -2,6 +2,7 @@
 #include "stdlib.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 void spgemm(const CSR A, const CSR B, CSR C) {
 
@@ -13,11 +14,7 @@ void spgemm(const CSR A, const CSR B, CSR C) {
 
 #pragma acc parallel firstprivate(temp[0:n], index[0:n])
     {
-        temp = malloc(n*sizeof(double));
-
-        for (int i=0; i<n;i++) {
-            temp[i]=0;
-        }
+        temp = calloc(n,sizeof(double));
 
         index = malloc(n * sizeof(int));
 
@@ -37,7 +34,6 @@ void spgemm(const CSR A, const CSR B, CSR C) {
                 for (int k = (*B).row_start[j]; k < (*B).row_start[j + 1]; k++) {
                     int k_col = (*B).col_indices[k];
                     temp[k_col] = temp[k_col] +  (*B).data[k]*x;
-
 
                     if (index[k_col] == -1) {
                         index[k_col] = pos;
