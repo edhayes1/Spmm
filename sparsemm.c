@@ -174,6 +174,7 @@ int main(int argc, char **argv)
       fprintf(stderr, "Unable to open %s for writing output.\n", argv[1]);
       exit(1);
     }
+
     writer(f, O);
     free_sparse(&O);
     fclose(f);

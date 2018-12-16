@@ -3,6 +3,119 @@
 #include <stdio.h>
 #include <string.h>
 
+void spgemm(const CSR A, const CSR B, CSR C) {
+
+    int n = (*C).n;
+    int m = (*C).m;
+    double *temp;
+    int *index;
+    (*C).row_start[0] = 0;
+
+#pragma acc parallel firstprivate(temp[0:n], index[0:n])
+    {
+        temp = malloc(n*sizeof(double));
+
+        for (int i=0; i<n;i++) {
+            temp[i]=0;
+        }
+
+        index = malloc(n * sizeof(int));
+
+        memset(index, -1, n * sizeof(int));
+
+        #pragma acc loop
+        for (int i = 0; i < m; i++) {
+            int pos = -2;
+            int nnz_row = 0;
+
+
+            for (int n = (*A).row_start[i]; n < (*A).row_start[i + 1]; n++) {
+                int j = (*A).col_indices[n];
+                double x = (*A).data[n];
+
+
+                for (int k = (*B).row_start[j]; k < (*B).row_start[j + 1]; k++) {
+                    int k_col = (*B).col_indices[k];
+                    temp[k_col] = temp[k_col] +  (*B).data[k]*x;
+
+
+                    if (index[k_col] == -1) {
+                        index[k_col] = pos;
+                        pos = k_col;
+                        nnz_row++;
+                    }
+                }
+            }
+
+
+            int col_index = (*C).row_start[i];
+
+            for (int cj = 0; cj < nnz_row; cj++) {
+                (*C).col_indices[col_index + cj] = pos;
+
+
+                (*C).data[col_index + cj] = temp[pos];
+
+                int t;
+                t = pos;
+
+                pos = index[pos];
+                index[t] = -1;
+                temp[t] = 0;
+            }
+        }
+        free(index);
+        free(temp);
+    }
+}
+
+void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp, int *ret){
+
+    int nz = 0;
+
+    int * index;
+
+
+#pragma acc parallel firstprivate (index[0:num_cols])
+    {
+        index = malloc(num_cols* sizeof(int));
+
+        memset(index, -1, num_cols*sizeof(int));
+
+        ret[0] = 0;
+
+#pragma acc loop
+
+        for (int i = 0; i < num_rows; i++){
+            nz = 0;
+            int counter = Arp[i+1];
+            for (int j = Arp[i]; j < counter; j++){
+                int A_col_index;
+                A_col_index = Acp[j];
+
+                int counter2 = Brp[A_col_index+1];
+
+                for (int k = Brp[A_col_index]; k < counter2; k++){
+
+                    int B_col_index;
+                    B_col_index= Bcp[k];
+                    int checker = i;
+                    if(index[B_col_index] != checker){
+
+                        nz=nz+1;
+                        index[B_col_index] = i;
+                    }
+                }
+            }
+            int adder = 1;
+            ret[i+adder] = nz;
+        }
+        free(index);
+    }
+
+    for (int i = 0; i < num_rows; i++) ret[i+1] =ret[i+1]-ret[2] + ret[i] +ret[2] ;
+}
+
 void basic_sparsemm(const COO, const COO, COO *);
 
 
@@ -13,18 +126,9 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C){
     int C_n = (*B).n;
     int C_m = (*A).m;
 
-
-#if defined(multi)
     int * Ccp  = calloc((C_m+1),sizeof(int));
-        get_nnz(C_m, C_n, (*A).row_start, (*A).col_indices, (*B).row_start, (*B).col_indices, Ccp);
-        alloc_sparse_CSR_with_rp(C_m, C_n, Ccp, C);
-#else
-    // estimate number of NZ
-    int estimate = (*A).NZ + (*B).NZ;
-    int C_nnz = 6*estimate;
-
-    alloc_sparse_CSR(C_m, C_n, C_nnz, C);
-#endif
+    get_nnz(C_m, C_n, (*A).row_start, (*A).col_indices, (*B).row_start, (*B).col_indices, Ccp);
+    alloc_sparse_CSR_with_rp(C_m, C_n, Ccp, C);
 
     spgemm(A, B, *C);
 }
@@ -32,8 +136,6 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C){
 
 void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
 
-
-    int nnz_cum = 0;
     int num_cols = (*sum).n;
     int num_rows = (*sum).m;
 
@@ -44,12 +146,12 @@ void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
 
 #pragma acc parallel firstprivate(temp[0:num_cols], next[0:num_cols])
     {
-        temp = malloc(num_cols* sizeof(double));
+        temp = calloc(num_cols, sizeof(double));
 
-        for(int i=0;i<num_cols;i++) temp[i] = 0;
+        //for(int i=0;i<num_cols;i++) temp[i] = 0;
 
         next = malloc(num_cols * sizeof(int));
-        for(int i=0; i<num_cols;i++) next[i]=-1;
+        memset(next, -1, num_cols*sizeof(int));
 
 #pragma acc loop
         for (int i = 0; i < num_rows; i++) {
@@ -104,166 +206,10 @@ void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
                 pos = next[t];
                 temp[t] = 0;
                 next[t] = -1;
-
-
             }
-
-#if !defined(multi)
-            nnz_cum = nnz_cum+ row_nz;
-            (*sum).row_start[i + 1] = nnz_cum;
-#endif
         }
-    }
-
-#if !defined(multi)
-    (*sum).NZ = nnz_cum;
-#endif
-}
-
-void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *Acp, const int *Brp, const int *Bcp, int *ret){
-
-    int nz = 0;
-
-    int * index;
-
-
-    #pragma acc parallel firstprivate (index[0:num_cols])
-    {
-        index = malloc(num_cols* sizeof(int));
-;
-
-        for(int i=0; i<num_cols; i++){
-            index[i]=-1;
-        }
-
-        ret[0] = 0;
-
-        #pragma acc loop
-
-        for (int i = 0; i < num_rows; i++){
-            nz = 0;
-            int counter = Arp[i+1];
-            for (int j = Arp[i]; j < counter; j++){
-                int A_col_index;
-                A_col_index = Acp[j];
-
-                int counter = Brp[A_col_index+1];
-
-                for (int k = Brp[A_col_index]; k < counter; k++){
-
-                    int B_col_index;
-                    B_col_index= Bcp[k];
-                    int checker = i;
-                    if(index[B_col_index] != checker){
-
-                        nz=nz+1;
-                        index[B_col_index] = i;
-                    }
-                }
-            }
-            int adder = 1;
-            ret[i+adder] = nz;
-        }
-        free(index);
-    }
-
-    for (int i = 0; i < num_rows; i++) ret[i+1] =ret[i+1]-ret[2] + ret[i] +ret[2] ;
-}
-
-
-void spgemm(const CSR A, const CSR B, CSR C) {
-
-    int n = (*C).n;
-    int m = (*C).m;
-    int nnz_cum = 0;
-
-
-    double *temp;
-    int *index;
-    (*C).row_start[0] = 0;
-
-#pragma acc parallel firstprivate(temp[0:n], index[0:n])
-    {
-        temp = malloc(n*sizeof(double));
-
-        for (int i=0; i<n;i++) {
-            temp[i]=0;
-        }
-
-        index = malloc(n * sizeof(int));
-
-        for (int i = 0; i<n;i++) index[i]=-1;
-
-#pragma acc loop
-        for (int i = 0; i < m; i++) {
-            int pos = -2;
-            int nnz_row = 0;
-
-
-            for (int n = (*A).row_start[i]; n < (*A).row_start[i + 1]; n++) {
-                int j = (*A).col_indices[n];
-                double x = (*A).data[n];
-
-
-                for (int k = (*B).row_start[j]; k < (*B).row_start[j + 1]; k++) {
-                    int k_col = (*B).col_indices[k];
-                    temp[k_col] = temp[k_col] +  (*B).data[k]*x;
-
-
-                    if (index[k_col] == -1) {
-                        index[k_col] = pos;
-                        pos = k_col;
-                        nnz_row++;
-                    }
-                }
-            }
-
-#if !defined(multi)
-
-            if (nnz_cum + nnz_row > (*C).NZ) {
-                printf("re estimating NZ in product\n");
-                int NZ_estimate = 2 * (*C).NZ;
-                int *realloc_col_indices = realloc((*C).col_indices, NZ_estimate * sizeof(int));
-                double *realloc_data = realloc((*C).data, NZ_estimate * sizeof(double));
-
-                if (realloc_col_indices && realloc_data) {
-                    (*C).NZ = NZ_estimate;
-                    (*C).col_indices = realloc_col_indices;
-                    (*C).data = realloc_data;
-                } else {
-                    fprintf(stderr, "FAILED RAN OUT OF MEMORY");
-                    exit(-1);
-                }
-            }
-#endif
-
-
-            int col_index = (*C).row_start[i];
-
-            for (int cj = 0; cj < nnz_row; cj++) {
-                (*C).col_indices[col_index + cj] = pos;
-
-
-                (*C).data[col_index + cj] = temp[pos];
-
-                int t;
-                t = pos;
-
-                pos = index[pos];
-                index[t] = -1;
-                temp[t] = 0;
-            }
-
-#if !defined(multi)
-            nnz_cum =(((3*5)*(nnz_cum + nnz_row))/15);
-
-            (*C).row_start[i + 1] = nnz_cum;
-#endif
-        }
-
-#if !defined(multi)
-        (*C).NZ = nnz_cum;
-#endif
+        free(next);
+        free(temp);
     }
 }
 
@@ -280,7 +226,7 @@ void sum_getnnz(const CSR mat_1, const CSR mat_2, const CSR mat_3, int * sumRp){
     {
         index = malloc(n * sizeof(int));
 
-        for (int i=0;i<n;i++) index[i] = -1;
+        memset(index, -1, n*sizeof(int));
         sumRp[0] = 0;
 
         #pragma acc loop
@@ -339,29 +285,17 @@ void optimised_sparsemm_sum(const COO A, const COO B, const COO C,
     coo_to_csr(D, &D_csr);
 
 
+    int mem = (*A).m + 1;
+    int * ABCRp = calloc(mem , sizeof(int));
 
-    #if defined(multi)
+    int * DEFRp = calloc(((*D).m + 1) , sizeof(int));
 
-        int mem = (*A).m + 1
-        int * ABCRp = calloc(mem , sizeof(int));
-
-        int * DEFRp = calloc(((*D).m + 1) , sizeof(int));
-
-        sum_getnnz(D_csr, E_csr, F_csr, DEFRp);
-        sum_getnnz(A_csr, B_csr, C_csr, ABCRp);
+    sum_getnnz(D_csr, E_csr, F_csr, DEFRp);
+    sum_getnnz(A_csr, B_csr, C_csr, ABCRp);
 
 
-        alloc_sparse_CSR_with_rp((*A_csr).m, (*A_csr).n, ABCRp, &ABC);
-        alloc_sparse_CSR_with_rp((*D_csr).m, (*D_csr).n, DEFRp, &DEF);
-
-    #else
-        int nnz_ABC = (*A_csr).NZ + (*B_csr).NZ + (*C_csr).NZ;
-        int nnz_DEF = (*D_csr).NZ + (*E_csr).NZ + (*F_csr).NZ;
-
-        alloc_sparse_CSR((*A_csr).m, (*A_csr).n, nnz_ABC, &ABC);
-        alloc_sparse_CSR((*D_csr).m, (*D_csr).n, nnz_DEF, &DEF);
-
-    #endif
+    alloc_sparse_CSR_with_rp((*A_csr).m, (*A_csr).n, ABCRp, &ABC);
+    alloc_sparse_CSR_with_rp((*D_csr).m, (*D_csr).n, DEFRp, &DEF);
 
     sum(A_csr, B_csr, C_csr, ABC);
     sum(D_csr, E_csr, F_csr, DEF);
@@ -420,6 +354,7 @@ void coo_to_csr(COO coo, CSR *sparse) {
 
     *sparse = sp;
 }
+
 void csr_to_coo(CSR csr, COO *sparse){
     COO sp;
     int m = (*csr).m;
@@ -429,7 +364,7 @@ void csr_to_coo(CSR csr, COO *sparse){
 
     alloc_sparse(m,n, NZ, &sp);
 
-    for(int i=0; i<m+1; i++)
+    for(int i=0; i<NZ; i++)
     {
         (*sp).data[i]=(*csr).data[i];
     }
@@ -459,6 +394,7 @@ void csr_to_coo(CSR csr, COO *sparse){
         }
     }
 
+    free(temp);
     *sparse = sp;
 }
 
@@ -477,7 +413,6 @@ void optimised_sparsemm(const COO A, const COO B, COO *C)
 
     free_CSR(&A_csr);
     free_CSR(&C_csr);
-
     free_CSR(&B_csr);
 
 }

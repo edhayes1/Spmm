@@ -1,5 +1,5 @@
 CFLAGS = 
-override CFLAGS += -O3 -g -D_GNU_SOURCE
+override CFLAGS += -O3 -acc -ta=multicore -g -D_GNU_SOURCE
 LDFLAGS = -lm -g
 CC = pgcc
 

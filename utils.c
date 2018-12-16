@@ -71,7 +71,7 @@ void alloc_sparse(int m, int n, int NZ, COO *sparse)
     sp->data = calloc(NZ, sizeof(double));
     *sparse = sp;
 }
-//todo rewrite
+
 void alloc_sparse_CSR(int m, int n, int NZ, CSR *sparse)
 {
     CSR sp = calloc(1, sizeof(struct _p_CSR));
@@ -85,7 +85,7 @@ void alloc_sparse_CSR(int m, int n, int NZ, CSR *sparse)
 
     *sparse = sp;
 }
-//todo rewrite
+
 void alloc_sparse_CSR_with_rp(int m, int n, int * rp, CSR *sparse)
 {
     CSR sp = calloc(1, sizeof(struct _p_CSR));
@@ -95,7 +95,7 @@ void alloc_sparse_CSR_with_rp(int m, int n, int * rp, CSR *sparse)
     (*sp).m = m;
     (*sp).col_indices = calloc(NZ, sizeof(int));
     (*sp).row_start = rp;
-    (*sp).data = calloc(NZ, sizeof(int));
+    (*sp).data = calloc(NZ, sizeof(double));
     *sparse = sp;
 }
 
@@ -115,7 +115,7 @@ void free_sparse(COO *sparse)
     free(sp);
     *sparse = NULL;
 }
-//todo rewrite
+
 void free_CSR(CSR *sparse)
 {
     CSR sp = *sparse;
@@ -277,10 +277,6 @@ void read_sparse(const char *file, COO *sparse)
     fclose(f);
 }
 
-//todo rewrite
-
-//todo rewrite
-
 /*
  * Write a sparse matrix to a file.
  *
@@ -292,7 +288,7 @@ void write_sparse(FILE *f, COO sp)
     int i;
     fprintf(f, "%d %d %d\n", sp->m, sp->n, sp->NZ);
     for (i = 0; i < sp->NZ; i++) {
-        fprintf(f, "%d %d %.6g\n", sp->coords[i].i, sp->coords[i].j, sp->data[i]);
+        fprintf(f, "%d %d %.15g\n", sp->coords[i].i, sp->coords[i].j, sp->data[i]);
     }
 }
 
