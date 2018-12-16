@@ -295,12 +295,11 @@ void optimised_sparsemm_sum(const COO A, const COO B, const COO C,
 
     sum(A_csr, B_csr, C_csr, ABC);
     sum(D_csr, E_csr, F_csr, DEF);
-
+    free_CSR(&A_csr);free_CSR(&F_csr);free_CSR(&E_csr);free_CSR(&D_csr); free_CSR(&B_csr);free_CSR(&C_csr);
     optimised_sparsemm_CSR(ABC, DEF, &ret);
 
     csr_to_coo(ret, O);
-
-    free_CSR(&A_csr);     free_CSR(&F_csr);free_CSR(&E_csr);free_CSR(&D_csr);  free_CSR(&B_csr);free_CSR(&C_csr);free_CSR(&ret);
+    free_CSR(&ret);
 }
 
 void coo_to_csr(COO coo, CSR *sparse) {
