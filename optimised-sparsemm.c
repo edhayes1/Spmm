@@ -23,7 +23,7 @@ void get_nnz(const int num_rows, const int num_cols, const int *Arp, const int *
         memset(index, -1, num_cols*sizeof(int));
 
         ret[0] = 0;
-        #pragma acc loop
+        #pragma acc loop independent
         for (int i = 0; i < num_rows; i++){
             nz = 0;
             for (int j = Arp[i]; j < Arp[i+1]; j++){
@@ -67,7 +67,7 @@ void spgemm(const CSR A, const CSR B, CSR C) {
         index = malloc(n * sizeof(int));
         memset(index, -1, n * sizeof(int));
 
-        #pragma acc loop
+        #pragma acc loop independent
         for (int i = 0; i < m; i++) {
             int pos = -2;
             int nnz_row = 0;
@@ -162,6 +162,13 @@ void optimised_sparsemm_CSR(const CSR A, const CSR B, CSR *C){
  */
 void optimised_sparsemm(const COO A, const COO B, COO *C)
 {
+    if (A->n != B->m) {
+        fprintf(stderr, "Invalid matrix sizes, got %d x %d and %d x %d\n",
+                A->m, A->n, B->m, B->n);
+        free(A);
+        free(B);
+        exit(1);
+    }
     // convert input to csr
     CSR A_csr, B_csr, C_csr;
     coo_to_csr(A, &A_csr);
@@ -188,7 +195,7 @@ void sum_getnnz(const CSR mat_1, const CSR mat_2, const CSR mat_3, int * sumRp){
         memset(index, -1, n * sizeof(int));
         sumRp[0] = 0;
 
-        #pragma acc loop
+        #pragma acc loop independent
         for (int i = 0; i < m; i++) {
             int nz = 0;
 
@@ -243,7 +250,7 @@ void sum(const CSR mat_1, const CSR mat_2, const CSR mat_3, CSR sum){
         next = malloc(num_cols * sizeof(int));
         memset(next, -1, num_cols*sizeof(int));
 
-        #pragma acc loop
+        #pragma acc loop independent
         for (int i = 0; i < num_rows; i++) {
             int pos = -2;
             int row_nz = 0;
@@ -311,6 +318,11 @@ void optimised_sparsemm_sum(const COO A, const COO B, const COO C,
                             const COO D, const COO E, const COO F,
                             COO *O)
 {
+    if ((A->m != B->m || A->n != B->n) || (A->m != C->m || A->n != C->n) || (D->m != E->m || D->n != E->n) || (D->m != F->m || D->n != F->n) || (A->n != D->m)){
+        fprintf(stderr, "invalid matrix sizes");
+        exit(1);
+    }
+
     // convert input to csr
     CSR A_csr, B_csr, C_csr, D_csr, E_csr, F_csr, ABC, DEF, ret;
     coo_to_csr(A, &A_csr);

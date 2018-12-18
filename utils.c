@@ -321,14 +321,14 @@ void csr_to_coo(CSR csr, COO *sparse){
     memcpy(sp->data, csr->data, NZ * sizeof(double));
 
     //fill in column indices
-    #pragma acc parallel loop
+    #pragma acc parallel loop independent
     for (int i = 0; i < NZ; i++){
         sp->coords[i].j = csr->col_indices[i];
     }
 
     //get num nz per row
     int * temp = calloc(m, sizeof(int));
-    #pragma acc parallel loop
+    #pragma acc parallel loop independent
     for (int i = 0; i < m; i++){
         temp[i] = csr->row_start[i+1] - csr->row_start[i];
     }
